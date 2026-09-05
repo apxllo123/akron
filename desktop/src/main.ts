@@ -95,6 +95,50 @@ function createWindow(): void {
   });
 }
 
+ipcMain.handle('startup:prepare', async () => {
+  const workspace = join(app.getPath('userData'), 'workspace');
+  const analyzer = analyzerBinaryPath();
+
+  logStartup('Startup preparation requested.');
+  const stages = [
+    { message: 'Checking application environment', action: () => app.isReady() },
+    {
+      message: 'Preparing local workspace',
+      action: () => {
+        mkdirSync(workspace, { recursive: true });
+        return existsSync(workspace);
+      },
+    },
+    {
+      message: 'Verifying Akron Analyzer',
+      action: () => existsSync(analyzer),
+    },
+    {
+      message: 'Checking target platform',
+      action: () => process.platform === 'darwin' || process.platform === 'win32',
+    },
+    { message: 'Finalizing local services', action: () => true },
+  ];
+
+  for (let index = 0; index < stages.length; index += 1) {
+    const stage = stages[index];
+    const success = stage.action();
+    if (!success) {
+      throw new Error(`${stage.message} failed.`);
+    }
+
+    const percent = Math.round(((index + 1) / stages.length) * 100);
+    logStartup(`${stage.message}: ${percent}%`);
+    mainWindow?.webContents.send('startup:progress', {
+      message: stage.message,
+      percent,
+      complete: percent === 100,
+    });
+  }
+
+  return { workspace, analyzer };
+});
+
 ipcMain.handle('dialog:pick-game-folder', async () => {
   const options: OpenDialogOptions = {
     title: 'Select a game folder',
@@ -160,7 +204,7 @@ ipcMain.handle('analyzer:analyze', async (_event, gamePath: unknown) => {
 registerApiHandlers();
 
 app.whenReady().then(() => {
-  logStartup(`App ready. Electron ${process.versions.electron}; Chrome ${process.versions.chrome}; Node ${process.versions.node}; macOS/Windows ${process.platform}; ${process.arch}.`);
+  logStartup(`App ready. Electron ${process.versions.electron}; Chrome ${process.versions.chrome}; Node ${process.versions.node}; ${process.platform}/${process.arch}.`);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
