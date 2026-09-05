@@ -4,11 +4,11 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "akron"
-path = "src/main.rs"
+[lib]
+name = "akron_adapter"
+path = "src/lib.rs"
 
 [dependencies]
 akron-analyzer = { path = "../Akron Analyzer" }
-eframe = { version = "0.35", default-features = true }
-rfd = "0.16"
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
