@@ -41,10 +41,14 @@ function createWindow(): void {
 }
 
 ipcMain.handle('dialog:pick-game-folder', async () => {
-  const result = await dialog.showOpenDialog(mainWindow ?? undefined, {
+  const options = {
     title: 'Select a game folder',
-    properties: ['openDirectory'],
-  });
+    properties: ['openDirectory'] as const,
+  };
+
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, options)
+    : await dialog.showOpenDialog(options);
 
   return result.canceled ? null : (result.filePaths[0] ?? null);
 });
