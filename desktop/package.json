@@ -5,10 +5,11 @@
   "description": "Akron desktop application",
   "main": "dist-electron/main.js",
   "scripts": {
-    "build": "npm run typecheck && electron-builder",
+    "build": "npm run typecheck && npm run compile && npm run compile:renderer && node scripts/build.mjs && electron-builder",
     "typecheck": "tsc --noEmit",
     "compile": "tsc",
-    "start": "npm run compile && electron ."
+    "compile:renderer": "tsc -p renderer/tsconfig.json",
+    "start": "npm run compile && npm run compile:renderer && node scripts/build.mjs && electron ."
   },
   "devDependencies": {
     "@types/node": "26.4.1",
