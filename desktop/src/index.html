@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'none';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Akron</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">A</div>
+          <div>
+            <div class="brand-name">AKRON</div>
+            <div class="brand-subtitle">Universal game analysis</div>
+          </div>
+        </div>
+        <div id="version" class="version">Loading…</div>
+      </header>
+
+      <main class="content">
+        <section class="hero">
+          <div>
+            <p class="eyebrow">ANALYZER</p>
+            <h1>Understand the entire game.</h1>
+            <p class="hero-copy">Select a game folder and Akron will build a non-destructive inventory of its files and executables.</p>
+          </div>
+          <button id="select-folder" class="primary-button" type="button">Select game folder</button>
+        </section>
+
+        <section class="selection-card">
+          <div>
+            <div class="label">SOURCE</div>
+            <div id="selected-path" class="path">No game selected</div>
+          </div>
+          <div id="status" class="status">Ready</div>
+        </section>
+
+        <div id="error" class="error" hidden></div>
+
+        <section id="results" class="results" hidden>
+          <div class="stats">
+            <article class="stat-card"><span>Files</span><strong id="files-value">0</strong></article>
+            <article class="stat-card"><span>Executables</span><strong id="executables-value">0</strong></article>
+            <article class="stat-card"><span>PE binaries</span><strong id="pe-value">0</strong></article>
+            <article class="stat-card"><span>Total size</span><strong id="size-value">0 B</strong></article>
+          </div>
+          <div class="ready-card">
+            <div class="ready-icon">✓</div>
+            <div>
+              <h2>Analysis complete</h2>
+              <p>The initial manifest is ready for the next Akron analysis stages.</p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="renderer.js"></script>
+  </body>
+</html>
