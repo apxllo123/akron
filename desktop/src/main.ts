@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -41,9 +41,9 @@ function createWindow(): void {
 }
 
 ipcMain.handle('dialog:pick-game-folder', async () => {
-  const options = {
+  const options: OpenDialogOptions = {
     title: 'Select a game folder',
-    properties: ['openDirectory'] as string[],
+    properties: ['openDirectory'],
   };
 
   const result = mainWindow
