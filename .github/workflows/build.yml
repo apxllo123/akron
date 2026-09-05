@@ -12,7 +12,7 @@ permissions:
 jobs:
   macos:
     name: Build macOS app (ARM64)
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
       - name: Checkout
@@ -88,17 +88,9 @@ jobs:
           if-no-files-found: error
           compression-level: 0
 
-  binaries:
-    name: Release binary (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            artifact: Akron-linux-x64
-          - os: windows-latest
-            artifact: Akron-windows-x64
+  windows:
+    name: Build Windows binary
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -110,13 +102,16 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Verify workspace
+        run: cargo check --workspace --all-targets
+
       - name: Build Akron
         run: cargo build --release -p akron-adapter
 
-      - name: Upload release directory
+      - name: Upload Windows binary
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.artifact }}
-          path: target/release/
+          name: Akron-windows-x64
+          path: target/release/akron.exe
           if-no-files-found: error
           compression-level: 0
