@@ -58,7 +58,7 @@ function createWindow(): void {
     height: 760,
     minWidth: 900,
     minHeight: 600,
-    show: false,
+    show: true,
     backgroundColor: '#0b0d12',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
@@ -89,10 +89,6 @@ function createWindow(): void {
     showStartupError('Akron could not start', `Failed to load ${indexPath}:\n\n${detail}`);
   });
 
-  mainWindow.once('ready-to-show', () => {
-    logStartup('Renderer is ready; showing main window.');
-    mainWindow?.show();
-  });
   mainWindow.on('closed', () => {
     logStartup('Main window closed.');
     mainWindow = null;
