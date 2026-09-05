@@ -1,9 +1,36 @@
 import { app, BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron';
+import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { registerApiHandlers } from './api';
+
+const startupLogDirectory = join(process.env.HOME ?? process.env.USERPROFILE ?? '.', 'Library', 'Logs', 'Akron');
+const startupLogPath = join(startupLogDirectory, 'startup.log');
+
+function logStartup(message: string): void {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  try {
+    mkdirSync(startupLogDirectory, { recursive: true });
+    appendFileSync(startupLogPath, line, 'utf8');
+  } catch {
+    // Logging must never prevent application startup.
+  }
+  console.error(line.trim());
+}
+
+if (process.platform === 'darwin') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+}
+
+process.on('uncaughtException', (error) => {
+  logStartup(`uncaughtException: ${error.stack ?? error.message}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logStartup(`unhandledRejection: ${reason instanceof Error ? reason.stack ?? reason.message : String(reason)}`);
+});
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -18,13 +45,14 @@ function analyzerBinaryPath(): string {
 }
 
 function showStartupError(title: string, detail: string): void {
-  console.error(`${title}: ${detail}`);
+  logStartup(`${title}: ${detail}`);
   if (app.isReady()) {
     dialog.showErrorBox(title, detail);
   }
 }
 
 function createWindow(): void {
+  logStartup('Creating main BrowserWindow.');
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 760,
@@ -55,13 +83,18 @@ function createWindow(): void {
   });
 
   const indexPath = join(app.getAppPath(), 'dist-renderer', 'index.html');
+  logStartup(`Loading renderer: ${indexPath}`);
   void mainWindow.loadFile(indexPath).catch((error: unknown) => {
     const detail = error instanceof Error ? error.message : String(error);
     showStartupError('Akron could not start', `Failed to load ${indexPath}:\n\n${detail}`);
   });
 
-  mainWindow.once('ready-to-show', () => mainWindow?.show());
+  mainWindow.once('ready-to-show', () => {
+    logStartup('Renderer is ready; showing main window.');
+    mainWindow?.show();
+  });
   mainWindow.on('closed', () => {
+    logStartup('Main window closed.');
     mainWindow = null;
   });
 }
@@ -131,15 +164,20 @@ ipcMain.handle('analyzer:analyze', async (_event, gamePath: unknown) => {
 registerApiHandlers();
 
 app.whenReady().then(() => {
+  logStartup(`App ready. Electron ${process.versions.electron}; Chrome ${process.versions.chrome}; Node ${process.versions.node}; macOS/Windows ${process.platform}; ${process.arch}.`);
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
+}).catch((error: unknown) => {
+  const detail = error instanceof Error ? error.stack ?? error.message : String(error);
+  showStartupError('Akron could not initialize', detail);
 });
 
 app.on('window-all-closed', () => {
+  logStartup('All windows closed.');
   if (process.platform !== 'darwin') {
     app.quit();
   }
