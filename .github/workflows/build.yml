@@ -1,0 +1,120 @@
+name: Build Akron
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: Build macOS app (ARM64)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Akron
+        run: cargo build --release -p akron-adapter
+
+      - name: Create .app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_DIR="$RUNNER_TEMP/Akron.app"
+          CONTENTS="$APP_DIR/Contents"
+          MACOS="$CONTENTS/MacOS"
+          RESOURCES="$CONTENTS/Resources"
+
+          rm -rf "$APP_DIR"
+          mkdir -p "$MACOS" "$RESOURCES"
+          cp "target/release/akron" "$MACOS/Akron"
+          chmod +x "$MACOS/Akron"
+
+          cat > "$CONTENTS/Info.plist" <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDisplayName</key>
+              <string>Akron</string>
+              <key>CFBundleExecutable</key>
+              <string>Akron</string>
+              <key>CFBundleIdentifier</key>
+              <string>com.apxllo.akron</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>Akron</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>0.1.0</string>
+              <key>CFBundleVersion</key>
+              <string>0.1.0</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>13.0</string>
+              <key>LSRequiresNativeExecution</key>
+              <true/>
+          </dict>
+          </plist>
+          PLIST
+
+          /usr/bin/codesign --force --deep --sign - "$APP_DIR"
+          /usr/bin/codesign --verify --deep --strict "$APP_DIR"
+          file "$MACOS/Akron"
+          /usr/bin/plutil -lint "$CONTENTS/Info.plist"
+
+          ditto -c -k --keepParent "$APP_DIR" "$RUNNER_TEMP/Akron-macos-arm64.zip"
+
+      - name: Upload macOS app
+        uses: actions/upload-artifact@v7
+        with:
+          name: Akron-macos-arm64
+          path: ${{ runner.temp }}/Akron-macos-arm64.zip
+          if-no-files-found: error
+          compression-level: 0
+
+  binaries:
+    name: Release binary (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: Akron-linux-x64
+          - os: windows-latest
+            artifact: Akron-windows-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Akron
+        run: cargo build --release -p akron-adapter
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            target/release/akron
+            target/release/akron.exe
+          if-no-files-found: error
