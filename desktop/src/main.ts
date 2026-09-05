@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'ele
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { registerApiHandlers } from './api';
 
@@ -51,6 +52,81 @@ function showStartupError(title: string, detail: string): void {
   }
 }
 
+function startupSplashHtml(): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Akron</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",sans-serif;background:#090b10;color:#f4f6fb;display:grid;place-items:center}
+  .wrap{width:min(520px,calc(100% - 64px));text-align:center}
+  .mark{width:72px;height:72px;margin:0 auto 22px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(135deg,#fff,#9aa4ff);color:#090b10;font-size:30px;font-weight:900;box-shadow:0 16px 50px rgba(0,0,0,.28)}
+  .name{font-size:28px;font-weight:850;letter-spacing:.18em}
+  .subtitle{margin-top:7px;color:#8e96a9;font-size:13px}
+  .percent{margin-top:40px;font-size:40px;font-weight:800;letter-spacing:-.04em}
+  .message{margin-top:8px;color:#aeb5c4;font-size:14px}
+  .track{height:7px;margin-top:22px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+  .bar{height:100%;width:0;border-radius:inherit;background:#f4f6fb;transition:width 180ms ease}
+  .hint{margin-top:17px;color:#697286;font-size:12px}
+  .error{margin-top:20px;color:#fca5a5;line-height:1.5;font-size:13px;display:none}
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="mark">A</div>
+    <div class="name">AKRON</div>
+    <div class="subtitle">Preparing your game conversion environment</div>
+    <div id="percent" class="percent">0%</div>
+    <div id="message" class="message">Starting Akron…</div>
+    <div class="track"><div id="bar" class="bar"></div></div>
+    <div id="hint" class="hint">Initializing local services</div>
+    <div id="error" class="error"></div>
+  </main>
+<script>
+(() => {
+  const percent = document.getElementById('percent');
+  const message = document.getElementById('message');
+  const hint = document.getElementById('hint');
+  const bar = document.getElementById('bar');
+  const error = document.getElementById('error');
+  const mainAppUrl = ${JSON.stringify(pathToFileURL(join(__dirname, 'index.html')).toString())};
+
+  const render = (progress) => {
+    const value = Math.max(0, Math.min(100, progress.percent));
+    percent.textContent = value + '%';
+    message.textContent = progress.message;
+    hint.textContent = progress.complete ? 'Ready' : 'Initializing local services';
+    bar.style.width = value + '%';
+  };
+
+  const start = async () => {
+    const unsubscribe = window.akron.onStartupProgress(render);
+    try {
+      render({ message: 'Starting Akron…', percent: 0, complete: false });
+      await window.akron.prepareStartup();
+      render({ message: 'Akron is ready', percent: 100, complete: true });
+      await new Promise((resolve) => setTimeout(resolve, 140));
+      window.location.replace(mainAppUrl);
+    } catch (cause) {
+      const text = cause instanceof Error ? cause.message : String(cause);
+      error.textContent = text;
+      error.style.display = 'block';
+      hint.textContent = 'Startup failed';
+      unsubscribe();
+    }
+  };
+
+  void start();
+})();
+</script>
+</body>
+</html>`;
+}
+
 function createWindow(): void {
   logStartup('Creating main BrowserWindow.');
   mainWindow = new BrowserWindow({
@@ -59,7 +135,7 @@ function createWindow(): void {
     minWidth: 900,
     minHeight: 600,
     show: true,
-    backgroundColor: '#0b0d12',
+    backgroundColor: '#090b10',
     webPreferences: {
       preload: join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -82,11 +158,11 @@ function createWindow(): void {
     );
   });
 
-  const indexPath = join(app.getAppPath(), 'dist-renderer', 'index.html');
-  logStartup(`Loading renderer: ${indexPath}`);
-  void mainWindow.loadFile(indexPath).catch((error: unknown) => {
+  const splashUrl = `data:text/html;charset=UTF-8,${encodeURIComponent(startupSplashHtml())}`;
+  logStartup('Loading immediate startup splash.');
+  void mainWindow.loadURL(splashUrl).catch((error: unknown) => {
     const detail = error instanceof Error ? error.message : String(error);
-    showStartupError('Akron could not start', `Failed to load ${indexPath}:\n\n${detail}`);
+    showStartupError('Akron could not start', `Failed to load startup splash:\n\n${detail}`);
   });
 
   mainWindow.on('closed', () => {
