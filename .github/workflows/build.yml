@@ -110,11 +110,10 @@ jobs:
       - name: Build Akron
         run: cargo build --release -p akron-adapter
 
-      - name: Upload binary
+      - name: Upload release directory
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            target/release/akron
-            target/release/akron.exe
+          path: target/release/
           if-no-files-found: error
+          compression-level: 0
