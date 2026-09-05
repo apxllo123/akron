@@ -3,6 +3,15 @@ name = "akron-analyzer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "akron_analyzer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "akron-analyzer"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"
