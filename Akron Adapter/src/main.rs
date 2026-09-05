@@ -30,35 +30,10 @@ struct AkronApp {
 }
 
 impl eframe::App for AkronApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if let Some(receiver) = &self.receiver {
-            match receiver.try_recv() {
-                Ok(result) => {
-                    self.analyzing = false;
-                    self.receiver = None;
-                    match result {
-                        Ok(manifest) => {
-                            self.error = None;
-                            self.manifest = Some(manifest);
-                        }
-                        Err(error) => {
-                            self.manifest = None;
-                            self.error = Some(error);
-                        }
-                    }
-                }
-                Err(mpsc::TryRecvError::Empty) => {
-                    ctx.request_repaint_after(std::time::Duration::from_millis(50));
-                }
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    self.analyzing = false;
-                    self.receiver = None;
-                    self.error = Some("Analyzer worker stopped unexpectedly.".to_owned());
-                }
-            }
-        }
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.poll_analysis(ui.ctx());
 
-        egui::TopBottomPanel::top("header").show(ctx, |ui| {
+        egui::TopBottomPanel::top("header").show_inside(ui, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.heading("AKRON");
@@ -68,14 +43,19 @@ impl eframe::App for AkronApp {
             ui.add_space(8.0);
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.add_space(8.0);
             ui.heading("Game Analyzer");
-            ui.label("Select a game directory. Akron will inspect it without modifying the source files.");
+            ui.label(
+                "Select a game directory. Akron will inspect it without modifying the source files.",
+            );
             ui.add_space(12.0);
 
             ui.horizontal(|ui| {
-                if ui.button("Select game folder").clicked() && !self.analyzing {
+                if ui
+                    .add_enabled(!self.analyzing, egui::Button::new("Select game folder"))
+                    .clicked()
+                {
                     if let Some(path) = rfd::FileDialog::new().pick_folder() {
                         self.start_analysis(path);
                     }
@@ -143,6 +123,36 @@ impl eframe::App for AkronApp {
 }
 
 impl AkronApp {
+    fn poll_analysis(&mut self, ctx: &egui::Context) {
+        let Some(receiver) = self.receiver.take() else {
+            return;
+        };
+
+        match receiver.try_recv() {
+            Ok(result) => {
+                self.analyzing = false;
+                match result {
+                    Ok(manifest) => {
+                        self.error = None;
+                        self.manifest = Some(manifest);
+                    }
+                    Err(error) => {
+                        self.manifest = None;
+                        self.error = Some(error);
+                    }
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {
+                self.receiver = Some(receiver);
+                ctx.request_repaint_after(std::time::Duration::from_millis(50));
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.analyzing = false;
+                self.error = Some("Analyzer worker stopped unexpectedly.".to_owned());
+            }
+        }
+    }
+
     fn start_analysis(&mut self, path: PathBuf) {
         self.selected_path = Some(path.clone());
         self.manifest = None;
