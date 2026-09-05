@@ -1,4 +1,4 @@
-import { cp, mkdir } from 'node:fs/promises';
+import { access, cp, mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,3 +9,4 @@ const rendererSource = join(desktopRoot, 'src');
 await mkdir(rendererOut, { recursive: true });
 await cp(join(rendererSource, 'index.html'), join(rendererOut, 'index.html'));
 await cp(join(rendererSource, 'styles.css'), join(rendererOut, 'styles.css'));
+await access(join(rendererOut, 'renderer.js'));
