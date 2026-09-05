@@ -93,7 +93,7 @@ function startupSplashHtml(): string {
   const hint = document.getElementById('hint');
   const bar = document.getElementById('bar');
   const error = document.getElementById('error');
-  const mainAppUrl = ${JSON.stringify(pathToFileURL(join(__dirname, 'index.html')).toString())};
+  const mainAppUrl = ${JSON.stringify(pathToFileURL(join(__dirname, '..', 'dist-renderer', 'index.html')).toString())};
 
   const render = (progress) => {
     const value = Math.max(0, Math.min(100, progress.percent));
