@@ -122,6 +122,10 @@ ipcMain.handle('startup:prepare', async () => {
 
   for (let index = 0; index < stages.length; index += 1) {
     const stage = stages[index];
+    if (!stage) {
+      throw new Error(`Startup stage ${index + 1} is unavailable.`);
+    }
+
     const success = stage.action();
     if (!success) {
       throw new Error(`${stage.message} failed.`);
