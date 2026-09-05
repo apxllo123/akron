@@ -7,6 +7,15 @@ declare global {
         platform: 'darwin' | 'win32';
         arch: string;
       }>;
+      prepareStartup(): Promise<{
+        workspace: string;
+        analyzer: string;
+      }>;
+      onStartupProgress(listener: (progress: {
+        message: string;
+        percent: number;
+        complete: boolean;
+      }) => void): () => void;
       pickGameFolder(): Promise<string | null>;
       analyzeGame(gamePath: string): Promise<unknown>;
     };
@@ -30,6 +39,14 @@ interface GameManifest {
   files: GameManifestFile[];
   executables: GameManifestExecutable[];
 }
+
+const startup = document.querySelector<HTMLElement>('#startup');
+const startupProgress = document.querySelector<HTMLElement>('#startup-progress');
+const startupPercent = document.querySelector<HTMLElement>('#startup-percent');
+const startupMessage = document.querySelector<HTMLElement>('#startup-message');
+const startupDetail = document.querySelector<HTMLElement>('#startup-detail');
+const startupStages = document.querySelector<HTMLElement>('#startup-stages');
+const appShell = document.querySelector<HTMLElement>('#app');
 
 const selectButton = document.querySelector<HTMLButtonElement>('#select-folder');
 const selectedPath = document.querySelector<HTMLElement>('#selected-path');
@@ -77,6 +94,55 @@ function renderManifest(manifest: GameManifest): void {
   if (results) results.hidden = false;
 }
 
+function updateStartup(progress: { message: string; percent: number; complete: boolean }): void {
+  const percent = Math.max(0, Math.min(100, progress.percent));
+  if (startupProgress) startupProgress.style.width = `${percent}%`;
+  if (startupPercent) startupPercent.textContent = `${percent}%`;
+  if (startupMessage) startupMessage.textContent = progress.message;
+  if (startupDetail) startupDetail.textContent = progress.complete ? 'Ready' : 'Initializing';
+
+  if (startupStages && !progress.complete) {
+    const existing = Array.from(startupStages.querySelectorAll<HTMLElement>('[data-startup-message]'));
+    if (!existing.some((item) => item.dataset.startupMessage === progress.message)) {
+      const stage = document.createElement('div');
+      stage.className = 'startup-stage complete';
+      stage.dataset.startupMessage = progress.message;
+      stage.innerHTML = `<span class="startup-stage-icon">✓</span><span>${progress.message}</span>`;
+      startupStages.append(stage);
+    }
+  }
+}
+
+async function initializeAkron(): Promise<void> {
+  updateStartup({ message: 'Starting Akron…', percent: 0, complete: false });
+  const unsubscribe = window.akron.onStartupProgress(updateStartup);
+
+  try {
+    await window.akron.getAppInfo().then((info) => {
+      if (version) version.textContent = `v${info.version} · ${info.arch}`;
+    });
+
+    await window.akron.prepareStartup();
+    updateStartup({ message: 'Akron is ready', percent: 100, complete: true });
+
+    window.setTimeout(() => {
+      if (startup) startup.hidden = true;
+      if (appShell) appShell.hidden = false;
+    }, 250);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    updateStartup({ message: 'Startup failed', percent: 100, complete: false });
+    if (startupDetail) startupDetail.textContent = message;
+
+    const stage = document.createElement('div');
+    stage.className = 'startup-stage failed';
+    stage.innerHTML = `<span class="startup-stage-icon">!</span><span>${message}</span>`;
+    startupStages?.append(stage);
+  } finally {
+    unsubscribe();
+  }
+}
+
 selectButton?.addEventListener('click', async () => {
   showError(null);
   const path = await window.akron.pickGameFolder();
@@ -97,8 +163,6 @@ selectButton?.addEventListener('click', async () => {
   }
 });
 
-void window.akron.getAppInfo().then((info) => {
-  if (version) version.textContent = `v${info.version} · ${info.arch}`;
-});
+void initializeAkron();
 
 export {};
