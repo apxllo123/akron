@@ -8,7 +8,26 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="shell">
+    <div id="startup" class="startup-shell">
+      <div class="startup-content">
+        <div class="startup-mark">A</div>
+        <p class="eyebrow">AKRON</p>
+        <h1>Preparing your workspace</h1>
+        <p id="startup-message" class="startup-message">Starting Akron…</p>
+
+        <div class="startup-progress-track" aria-label="Startup progress">
+          <div id="startup-progress" class="startup-progress"></div>
+        </div>
+        <div class="startup-progress-meta">
+          <span id="startup-detail">Initializing</span>
+          <strong id="startup-percent">0%</strong>
+        </div>
+
+        <div id="startup-stages" class="startup-stages" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div id="app" class="shell" hidden>
       <header class="topbar">
         <div class="brand">
           <div class="brand-mark">A</div>
