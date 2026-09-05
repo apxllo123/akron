@@ -53,12 +53,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP="$(find desktop/dist -maxdepth 1 -name '*.app' -type d -print -quit)"
+          APP="$(find desktop/dist -type d -name '*.app' -print -quit)"
           test -n "$APP"
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
-          file "$APP/Contents/MacOS"/*
+          /usr/bin/file "$APP/Contents/MacOS"/*
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
