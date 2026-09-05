@@ -1,3 +1,5 @@
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
@@ -6,18 +8,82 @@ use akron_analyzer::manifest::GameManifest;
 use eframe::egui;
 
 fn main() -> eframe::Result<()> {
+    install_panic_logger();
+    log_startup("starting Akron desktop application");
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([980.0, 680.0])
-            .with_min_inner_size([760.0, 520.0]),
+            .with_min_inner_size([760.0, 520.0])
+            .with_title("Akron"),
         ..Default::default()
     };
 
-    eframe::run_native(
+    let result = eframe::run_native(
         "Akron",
         options,
         Box::new(|_cc| Ok(Box::new(AkronApp::default()))),
-    )
+    );
+
+    if let Err(error) = &result {
+        log_startup(&format!("eframe startup failed: {error}"));
+    } else {
+        log_startup("Akron application exited normally");
+    }
+
+    result
+}
+
+fn install_panic_logger() {
+    std::panic::set_hook(Box::new(|panic| {
+        let message = match panic.location() {
+            Some(location) => format!(
+                "panic at {}:{}:{}: {}",
+                location.file(),
+                location.line(),
+                location.column(),
+                panic
+            ),
+            None => format!("panic: {panic}"),
+        };
+        log_startup(&message);
+    }));
+}
+
+fn log_startup(message: &str) {
+    let Some(log_dir) = log_directory() else {
+        return;
+    };
+
+    if fs::create_dir_all(&log_dir).is_err() {
+        return;
+    }
+
+    let path = log_dir.join("Akron.log");
+    let timestamp = format!("{:?}", std::time::SystemTime::now());
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "[{timestamp}] {message}");
+    }
+}
+
+fn log_directory() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")?;
+        return Some(PathBuf::from(home).join("Library/Logs/Akron"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let local_app_data = std::env::var_os("LOCALAPPDATA")?;
+        return Some(PathBuf::from(local_app_data).join("Akron/Logs"));
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let home = std::env::var_os("HOME")?;
+        Some(PathBuf::from(home).join(".local/share/Akron/logs"))
+    }
 }
 
 #[derive(Default)]
