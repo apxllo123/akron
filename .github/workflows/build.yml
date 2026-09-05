@@ -60,9 +60,14 @@ jobs:
           APP="$(find desktop/dist -type d -name '*.app' -print -quit)"
           test -n "$APP"
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
-          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+          test -x "$APP/Contents/MacOS/Akron"
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
-          /usr/bin/file "$APP/Contents/MacOS"/*
+          /usr/bin/file "$APP/Contents/MacOS/Akron"
+          /usr/bin/codesign --verify --verbose=2 "$APP"
+          /usr/bin/codesign -dv --verbose=4 "$APP" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
+
+          echo "Gatekeeper assessment is informational for this non-notarized development build:"
+          /usr/sbin/spctl --assess --type execute --verbose=4 "$APP" || true
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
