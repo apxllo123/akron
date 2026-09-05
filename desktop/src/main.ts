@@ -17,6 +17,13 @@ function analyzerBinaryPath(): string {
   return join(app.getAppPath(), '..', 'target', 'release', binaryName);
 }
 
+function showStartupError(title: string, detail: string): void {
+  console.error(`${title}: ${detail}`);
+  if (app.isReady()) {
+    dialog.showErrorBox(title, detail);
+  }
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1180,
@@ -33,7 +40,26 @@ function createWindow(): void {
     },
   });
 
-  void mainWindow.loadFile(join(app.getAppPath(), 'dist-renderer', 'index.html'));
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    showStartupError(
+      'Akron could not load its interface',
+      `Electron failed to load:\n\n${validatedURL}\n\n${errorCode}: ${errorDescription}`,
+    );
+  });
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    showStartupError(
+      'Akron renderer stopped unexpectedly',
+      `Reason: ${details.reason}${details.exitCode !== 0 ? `\nExit code: ${details.exitCode}` : ''}`,
+    );
+  });
+
+  const indexPath = join(app.getAppPath(), 'dist-renderer', 'index.html');
+  void mainWindow.loadFile(indexPath).catch((error: unknown) => {
+    const detail = error instanceof Error ? error.message : String(error);
+    showStartupError('Akron could not start', `Failed to load ${indexPath}:\n\n${detail}`);
+  });
+
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;
