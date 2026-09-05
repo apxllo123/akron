@@ -1,0 +1,46 @@
+{
+  "name": "akron-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Akron desktop application",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "build": "npm run typecheck && electron-builder",
+    "typecheck": "tsc --noEmit",
+    "compile": "tsc",
+    "start": "npm run compile && electron ."
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "electron": "44.2.0",
+    "electron-builder": "26.15.3",
+    "typescript": "7.0.2"
+  },
+  "build": {
+    "appId": "com.apxllo.akron",
+    "productName": "Akron",
+    "asar": true,
+    "files": [
+      "dist-electron/**/*",
+      "dist-renderer/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "akron-runtime",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "target": ["zip"],
+      "category": "public.app-category.games"
+    },
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
