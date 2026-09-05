@@ -93,7 +93,8 @@ fn detect_binary_format(path: &Path) -> Result<String> {
 }
 
 fn detect_pe_architecture(path: &Path) -> Result<Option<String>> {
-    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
     let mut dos_header = [0_u8; 0x40];
     let read = file.read(&mut dos_header)?;
     if read < dos_header.len() || &dos_header[..2] != b"MZ" {
