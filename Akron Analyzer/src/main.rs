@@ -1,15 +1,12 @@
 use anyhow::Result;
 use std::path::PathBuf;
 
-mod manifest;
-mod scanner;
-
 fn main() -> Result<()> {
     let input = std::env::args_os().nth(1).map(PathBuf::from);
 
     match input {
         Some(path) => {
-            let report = scanner::analyze_game(&path)?;
+            let report = akron_analyzer::scanner::analyze_game(&path)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         None => {
