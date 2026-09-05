@@ -55,10 +55,9 @@ impl eframe::App for AkronApp {
                 if ui
                     .add_enabled(!self.analyzing, egui::Button::new("Select game folder"))
                     .clicked()
+                    && let Some(path) = rfd::FileDialog::new().pick_folder()
                 {
-                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                        self.start_analysis(path);
-                    }
+                    self.start_analysis(path);
                 }
 
                 if let Some(path) = &self.selected_path {
