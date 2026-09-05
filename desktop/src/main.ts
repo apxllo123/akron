@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
-import { existsSync } from 'node:fs';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { registerApiHandlers } from './api';
@@ -14,8 +14,7 @@ function analyzerBinaryPath(): string {
     return packagedPath;
   }
 
-  const developmentPath = join(app.getAppPath(), '..', '..', 'target', 'release', binaryName);
-  return developmentPath;
+  return join(app.getAppPath(), '..', 'target', 'release', binaryName);
 }
 
 function createWindow(): void {
@@ -34,7 +33,7 @@ function createWindow(): void {
     },
   });
 
-  mainWindow.loadFile(join(app.getAppPath(), 'dist-renderer', 'index.html'));
+  void mainWindow.loadFile(join(app.getAppPath(), 'dist-renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -78,10 +77,14 @@ ipcMain.handle('analyzer:analyze', async (_event, gamePath: unknown) => {
     child.stderr.on('data', (chunk: string) => {
       stderr += chunk;
     });
-    child.once('error', (error) => reject(new Error(`Failed to start Analyzer: ${error.message}`)));
+    child.once('error', (error) => {
+      reject(new Error(`Failed to start Analyzer: ${error.message}`));
+    });
     child.once('close', (code, signal) => {
       if (code !== 0) {
-        const detail = stderr.trim() || `Analyzer exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}.`;
+        const detail =
+          stderr.trim() ||
+          `Analyzer exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}.`;
         reject(new Error(detail));
         return;
       }
