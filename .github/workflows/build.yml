@@ -38,10 +38,11 @@ jobs:
           CONTENTS="$APP_DIR/Contents"
           MACOS="$CONTENTS/MacOS"
           RESOURCES="$CONTENTS/Resources"
+          BINARY="$MACOS/Akron"
 
           rm -rf "$APP_DIR"
           mkdir -p "$MACOS" "$RESOURCES"
-          install -m 755 "target/release/akron" "$MACOS/Akron"
+          install -m 755 "target/release/akron" "$BINARY"
 
           cat > "$CONTENTS/Info.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -72,11 +73,17 @@ jobs:
           </plist>
           PLIST
 
-          /usr/bin/codesign --force --deep --sign - "$APP_DIR"
-          /usr/bin/codesign --verify --deep --strict "$APP_DIR"
           /usr/bin/plutil -lint "$CONTENTS/Info.plist"
-          /usr/bin/codesign -dv --verbose=2 "$APP_DIR" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
-          file "$MACOS/Akron"
+          /usr/bin/codesign --force --deep --sign - "$APP_DIR"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+
+          test -x "$BINARY"
+          test "$(/usr/bin/file -b "$BINARY" | grep -c 'arm64' || true)" -ge 1
+          /usr/bin/otool -L "$BINARY"
+          /usr/bin/codesign -dv --verbose=4 "$APP_DIR" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
+
+          echo "Gatekeeper assessment is informational for this non-notarized development build:"
+          /usr/sbin/spctl --assess --type execute --verbose=4 "$APP_DIR" || true
 
           ditto -c -k --keepParent "$APP_DIR" "$RUNNER_TEMP/Akron-macos-arm64.zip"
 
