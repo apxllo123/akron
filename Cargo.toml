@@ -9,4 +9,11 @@ resolver = "2"
 edition = "2024"
 version = "0.1.0"
 license = "MIT"
-rust-version = "1.85"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
