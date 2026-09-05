@@ -21,82 +21,55 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package.json
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify workspace
-        run: cargo check --workspace --all-targets
+      - name: Build Analyzer
+        run: cargo build --release -p akron-analyzer
 
-      - name: Build Akron
-        run: cargo build --release -p akron-adapter
-
-      - name: Create .app bundle
+      - name: Stage Analyzer runtime
         shell: bash
         run: |
           set -euo pipefail
-          APP_DIR="$RUNNER_TEMP/Akron.app"
-          CONTENTS="$APP_DIR/Contents"
-          MACOS="$CONTENTS/MacOS"
-          RESOURCES="$CONTENTS/Resources"
-          BINARY="$MACOS/Akron"
+          rm -rf desktop/resources/*
+          install -m 755 target/release/akron-analyzer desktop/resources/akron-analyzer
 
-          rm -rf "$APP_DIR"
-          mkdir -p "$MACOS" "$RESOURCES"
-          install -m 755 "target/release/akron" "$BINARY"
+      - name: Install Electron dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
 
-          cat > "$CONTENTS/Info.plist" <<'PLIST'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleDisplayName</key>
-              <string>Akron</string>
-              <key>CFBundleExecutable</key>
-              <string>Akron</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.apxllo.akron</string>
-              <key>CFBundleInfoDictionaryVersion</key>
-              <string>6.0</string>
-              <key>CFBundleName</key>
-              <string>Akron</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>0.1.0</string>
-              <key>CFBundleVersion</key>
-              <string>0.1.0</string>
-              <key>LSMinimumSystemVersion</key>
-              <string>13.0</string>
-              <key>LSRequiresNativeExecution</key>
-              <true/>
-          </dict>
-          </plist>
-          PLIST
+      - name: Build Electron app
+        working-directory: desktop
+        run: npm run build
 
-          /usr/bin/plutil -lint "$CONTENTS/Info.plist"
-          /usr/bin/codesign --force --deep --sign - "$APP_DIR"
-          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_DIR"
-
-          test -x "$BINARY"
-          test "$(/usr/bin/file -b "$BINARY" | grep -c 'arm64' || true)" -ge 1
-          /usr/bin/otool -L "$BINARY"
-          /usr/bin/codesign -dv --verbose=4 "$APP_DIR" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
-
-          echo "Gatekeeper assessment is informational for this non-notarized development build:"
-          /usr/sbin/spctl --assess --type execute --verbose=4 "$APP_DIR" || true
-
-          ditto -c -k --keepParent "$APP_DIR" "$RUNNER_TEMP/Akron-macos-arm64.zip"
+      - name: Validate macOS artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$(find desktop/dist -maxdepth 1 -name '*.app' -type d -print -quit)"
+          test -n "$APP"
+          /usr/bin/plutil -lint "$APP/Contents/Info.plist"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
+          file "$APP/Contents/MacOS"/*
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
         with:
           name: Akron-macos-arm64
-          path: ${{ runner.temp }}/Akron-macos-arm64.zip
+          path: desktop/dist/*.zip
           if-no-files-found: error
           compression-level: 0
 
   windows:
-    name: Build Windows binary
+    name: Build Windows app (x64)
     runs-on: windows-latest
 
     steps:
@@ -106,19 +79,43 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: desktop/package.json
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify workspace
-        run: cargo check --workspace --all-targets
+      - name: Build Analyzer
+        run: cargo build --release -p akron-analyzer
 
-      - name: Build Akron
-        run: cargo build --release -p akron-adapter
+      - name: Stage Analyzer runtime
+        shell: pwsh
+        run: |
+          Get-ChildItem desktop/resources -Force | Remove-Item -Recurse -Force
+          Copy-Item target/release/akron-analyzer.exe desktop/resources/akron-analyzer.exe
 
-      - name: Upload Windows binary
+      - name: Install Electron dependencies
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Build Electron app
+        working-directory: desktop
+        run: npm run build
+
+      - name: Validate Windows artifact
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem desktop/dist -Filter "*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "No Windows installer was produced." }
+
+      - name: Upload Windows app
         uses: actions/upload-artifact@v7
         with:
           name: Akron-windows-x64
-          path: target/release/akron.exe
+          path: desktop/dist/*.exe
           if-no-files-found: error
           compression-level: 0
