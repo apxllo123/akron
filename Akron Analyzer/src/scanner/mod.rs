@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 use std::fs::File;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
 use walkdir::WalkDir;
 
 use crate::manifest::{ExecutableRecord, FileRecord, GameManifest};
@@ -27,9 +27,14 @@ pub fn analyze_game(root: &Path) -> Result<GameManifest> {
 
         let path = entry.path();
         let relative = path.strip_prefix(&root).unwrap_or(path).to_path_buf();
-        let metadata = entry.metadata().with_context(|| format!("failed to stat {}", path.display()))?;
+        let metadata = entry
+            .metadata()
+            .with_context(|| format!("failed to stat {}", path.display()))?;
         let sha256 = sha256_file(path)?;
-        let extension = path.extension().and_then(|v| v.to_str()).map(str::to_ascii_lowercase);
+        let extension = path
+            .extension()
+            .and_then(|v| v.to_str())
+            .map(str::to_ascii_lowercase);
 
         files.push(FileRecord {
             path: relative.clone(),
@@ -58,7 +63,8 @@ pub fn analyze_game(root: &Path) -> Result<GameManifest> {
 }
 
 fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 1024 * 1024];
 
@@ -74,7 +80,8 @@ fn sha256_file(path: &Path) -> Result<String> {
 }
 
 fn detect_binary_format(path: &Path) -> Result<String> {
-    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
     let mut header = [0_u8; 4];
     let read = file.read(&mut header)?;
 
@@ -86,20 +93,23 @@ fn detect_binary_format(path: &Path) -> Result<String> {
 }
 
 fn detect_pe_architecture(path: &Path) -> Result<Option<String>> {
-    let bytes = std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    if bytes.len() < 0x40 || &bytes[..2] != b"MZ" {
+    let mut file = File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut dos_header = [0_u8; 0x40];
+    let read = file.read(&mut dos_header)?;
+    if read < dos_header.len() || &dos_header[..2] != b"MZ" {
         return Ok(None);
     }
 
-    let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
-    if pe_offset.checked_add(6).is_none() || pe_offset + 6 > bytes.len() {
-        return Ok(None);
-    }
-    if &bytes[pe_offset..pe_offset + 4] != b"PE\0\0" {
+    let pe_offset = u32::from_le_bytes(dos_header[0x3c..0x40].try_into().unwrap()) as u64;
+    file.seek(SeekFrom::Start(pe_offset))?;
+
+    let mut pe_header = [0_u8; 6];
+    let read = file.read(&mut pe_header)?;
+    if read < pe_header.len() || &pe_header[..4] != b"PE\0\0" {
         return Ok(None);
     }
 
-    let machine = u16::from_le_bytes(bytes[pe_offset + 4..pe_offset + 6].try_into().unwrap());
+    let machine = u16::from_le_bytes(pe_header[4..6].try_into().unwrap());
     let arch = match machine {
         0x014c => "x86",
         0x8664 => "x86_64",
