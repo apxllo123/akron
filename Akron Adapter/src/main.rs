@@ -70,13 +70,13 @@ fn log_directory() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
         let home = std::env::var_os("HOME")?;
-        return Some(PathBuf::from(home).join("Library/Logs/Akron"));
+        Some(PathBuf::from(home).join("Library/Logs/Akron"))
     }
 
     #[cfg(target_os = "windows")]
     {
         let local_app_data = std::env::var_os("LOCALAPPDATA")?;
-        return Some(PathBuf::from(local_app_data).join("Akron/Logs"));
+        Some(PathBuf::from(local_app_data).join("Akron/Logs"))
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
