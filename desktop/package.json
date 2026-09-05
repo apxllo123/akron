@@ -34,7 +34,10 @@
     ],
     "mac": {
       "target": ["zip"],
-      "category": "public.app-category.games"
+      "category": "public.app-category.games",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
     },
     "win": {
       "target": ["nsis"]
