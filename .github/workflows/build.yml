@@ -24,6 +24,9 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Verify workspace
+        run: cargo check --workspace --all-targets
+
       - name: Build Akron
         run: cargo build --release -p akron-adapter
 
@@ -38,8 +41,7 @@ jobs:
 
           rm -rf "$APP_DIR"
           mkdir -p "$MACOS" "$RESOURCES"
-          cp "target/release/akron" "$MACOS/Akron"
-          chmod +x "$MACOS/Akron"
+          install -m 755 "target/release/akron" "$MACOS/Akron"
 
           cat > "$CONTENTS/Info.plist" <<'PLIST'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -72,8 +74,9 @@ jobs:
 
           /usr/bin/codesign --force --deep --sign - "$APP_DIR"
           /usr/bin/codesign --verify --deep --strict "$APP_DIR"
-          file "$MACOS/Akron"
           /usr/bin/plutil -lint "$CONTENTS/Info.plist"
+          /usr/bin/codesign -dv --verbose=2 "$APP_DIR" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
+          file "$MACOS/Akron"
 
           ditto -c -k --keepParent "$APP_DIR" "$RUNNER_TEMP/Akron-macos-arm64.zip"
 
