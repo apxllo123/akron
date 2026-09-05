@@ -31,9 +31,9 @@ struct AkronApp {
 
 impl eframe::App for AkronApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.poll_analysis(ui.ctx());
+        self.poll_analysis(ui);
 
-        egui::TopBottomPanel::top("header").show_inside(ui, |ui| {
+        egui::Panel::top("header").show(ui, |ui| {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 ui.heading("AKRON");
@@ -43,7 +43,7 @@ impl eframe::App for AkronApp {
             ui.add_space(8.0);
         });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             ui.add_space(8.0);
             ui.heading("Game Analyzer");
             ui.label(
@@ -123,7 +123,7 @@ impl eframe::App for AkronApp {
 }
 
 impl AkronApp {
-    fn poll_analysis(&mut self, ctx: &egui::Context) {
+    fn poll_analysis(&mut self, ui: &mut egui::Ui) {
         let Some(receiver) = self.receiver.take() else {
             return;
         };
@@ -144,7 +144,8 @@ impl AkronApp {
             }
             Err(mpsc::TryRecvError::Empty) => {
                 self.receiver = Some(receiver);
-                ctx.request_repaint_after(std::time::Duration::from_millis(50));
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_millis(50));
             }
             Err(mpsc::TryRecvError::Disconnected) => {
                 self.analyzing = false;
