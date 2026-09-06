@@ -43,9 +43,29 @@ cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
 cp "$ADAPTER" "$RESOURCES/akron-runtime/akron-adapter"
 chmod 755 "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 
-# The native macOS build intentionally does not depend on Electron.
-rm -f "$RESOURCES/Akron.icns"
-/usr/bin/plutil -delete CFBundleIconFile "$CONTENTS/Info.plist" 2>/dev/null || true
+# Generate the native macOS icon from the repository source artwork.
+# Finder provides the standard rounded presentation for application icons.
+ICON_SOURCE="$ROOT/../resources/icon.jpeg"
+ICONSET="$OUT/Akron.iconset"
+ICON_PNG="$OUT/Akron-source.png"
+ICON_ICNS="$RESOURCES/Akron.icns"
+if [[ ! -f "$ICON_SOURCE" ]]; then
+  echo "Missing Akron icon source: $ICON_SOURCE" >&2
+  exit 1
+fi
+rm -rf "$ICONSET" "$ICON_PNG" "$ICON_ICNS"
+mkdir -p "$ICONSET"
+/usr/bin/sips -s format png "$ICON_SOURCE" --out "$ICON_PNG" >/dev/null
+
+for size in 16 32 128 256 512; do
+  /usr/bin/sips -z "$size" "$size" "$ICON_PNG" --out "$ICONSET/${size}x${size}.png" >/dev/null
+  doubled=$((size * 2))
+  /usr/bin/sips -z "$doubled" "$doubled" "$ICON_PNG" --out "$ICONSET/${size}x${size}@2x.png" >/dev/null
+done
+
+/usr/bin/iconutil -c icns "$ICONSET" -o "$ICON_ICNS"
+test -s "$ICON_ICNS"
+/usr/bin/plutil -replace CFBundleIconFile -string Akron "$CONTENTS/Info.plist"
 
 BUILD_SHA="${GITHUB_SHA:-local}"
 BUILD_VERSION="$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$CONTENTS/Info.plist")"
@@ -54,8 +74,8 @@ Akron native macOS build
 Host: AppKit + WKWebView
 Architecture: arm64
 Electron runtime: not used
-Icon: pending dedicated Akron asset
-Validation profile: native-macos-v3
+Icon: Akron.icns generated from resources/icon.jpeg
+Validation profile: native-macos-v4
 Build version: $BUILD_VERSION
 Git SHA: $BUILD_SHA
 Distribution: ZIP + DMG
@@ -80,10 +100,10 @@ fi
 
 chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 /usr/bin/file "$MACOS/Akron"
+/usr/bin/file "$ICON_ICNS"
 /usr/bin/file "$RESOURCES/akron-runtime/akron-analyzer"
 /usr/bin/file "$RESOURCES/akron-runtime/akron-adapter"
 
-# Keep the ZIP for scripting/debugging and add a native Finder-friendly DMG.
 ZIP="$OUT/Akron-Native-macos-arm64.zip"
 rm -f "$ZIP"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
@@ -96,7 +116,6 @@ mkdir -p "$DMG_STAGE"
 /usr/bin/ditto "$APP" "$DMG_STAGE/Akron.app"
 ln -s /Applications "$DMG_STAGE/Applications"
 
-# UDZO is a standard compressed read-only HFS+/APFS-compatible disk image format.
 /usr/bin/hdiutil create \
   -volname "Akron" \
   -srcfolder "$DMG_STAGE" \
@@ -106,7 +125,6 @@ ln -s /Applications "$DMG_STAGE/Applications"
 
 rm -rf "$DMG_STAGE"
 
-# Validate that the image can be mounted and contains exactly the expected app.
 MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen)"
 MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
 if [[ -z "$MOUNT_PATH" ]]; then
@@ -118,6 +136,7 @@ trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
 test -d "$MOUNT_PATH/Akron.app"
 test -d "$MOUNT_PATH/Applications"
 test -x "$MOUNT_PATH/Akron.app/Contents/MacOS/Akron"
+test -f "$MOUNT_PATH/Akron.app/Contents/Resources/Akron.icns"
 test -x "$MOUNT_PATH/Akron.app/Contents/Resources/akron-runtime/akron-analyzer"
 test -x "$MOUNT_PATH/Akron.app/Contents/Resources/akron-runtime/akron-adapter"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$MOUNT_PATH/Akron.app"
