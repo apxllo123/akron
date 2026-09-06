@@ -153,37 +153,41 @@ jobs:
           set -euo pipefail
           gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Akron $RELEASE_TAG" --generate-notes
 
-      - name: Wait for tagged Build Akron workflow
+      - name: Wait for tagged  Build workflow
         id: build
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
+          tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+          echo "Waiting for  Build run for tag $RELEASE_TAG at $tag_sha"
+
           for attempt in $(seq 1 60); do
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow '.yml' \
               --event push \
-              --limit 50 \
-              --json databaseId,status,conclusion,headBranch,event \
-              --jq ".[] | select(.headBranch == \"$RELEASE_TAG\" and .event == \"push\") | .databaseId" | head -n 1)"
+              --commit "$tag_sha" \
+              --limit 20 \
+              --json databaseId,status,conclusion,headSha,event \
+              --jq ".[] | select(.headSha == \"$tag_sha\" and .event == \"push\") | .databaseId" | head -n 1)"
 
             if [[ -n "$run_id" ]]; then
               status="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
               conclusion="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion // empty')"
-              echo "Build run $run_id: status=$status conclusion=${conclusion:-pending}"
+              echo " Build run $run_id: status=$status conclusion=${conclusion:-pending}"
               if [[ "$status" == "completed" ]]; then
-                [[ "$conclusion" == "success" ]] || { echo "Tagged Build Akron failed: $conclusion" >&2; exit 1; }
+                [[ "$conclusion" == "success" ]] || { echo "Tagged  Build failed: $conclusion" >&2; exit 1; }
                 echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
             else
-              echo "Waiting for tagged Build Akron run..."
+              echo "Waiting for tagged  Build run..."
             fi
             sleep 10
           done
-          echo "Timed out waiting for tagged Build Akron workflow." >&2
+          echo "Timed out waiting for tagged  Build workflow." >&2
           exit 1
 
       - name: Download macOS release artifacts
