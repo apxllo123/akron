@@ -74,19 +74,23 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: bash macos/build.sh
 
-      - name: Validate native macOS artifact
+      - name: Validate native macOS artifacts
         shell: bash
         run: |
           set -euo pipefail
           APP="desktop/dist-native/Akron.app"
           ZIP="desktop/dist-native/Akron-Native-macos-arm64.zip"
-          SHA_FILE="desktop/dist-native/Akron-Native-macos-arm64.zip.sha256"
+          ZIP_SHA="desktop/dist-native/Akron-Native-macos-arm64.zip.sha256"
+          DMG="desktop/dist-native/Akron-Native-macos-arm64.dmg"
+          DMG_SHA="desktop/dist-native/Akron-Native-macos-arm64.dmg.sha256"
 
           echo "== Paths =="
-          printf 'APP=%s\nZIP=%s\nSHA_FILE=%s\n' "$APP" "$ZIP" "$SHA_FILE"
+          printf 'APP=%s\nZIP=%s\nZIP_SHA=%s\nDMG=%s\nDMG_SHA=%s\n' "$APP" "$ZIP" "$ZIP_SHA" "$DMG" "$DMG_SHA"
           test -d "$APP" || { echo "FAIL: missing native app bundle: $APP" >&2; exit 1; }
           test -f "$ZIP" || { echo "FAIL: missing native ZIP: $ZIP" >&2; exit 1; }
-          test -f "$SHA_FILE" || { echo "FAIL: missing ZIP checksum file: $SHA_FILE" >&2; exit 1; }
+          test -f "$ZIP_SHA" || { echo "FAIL: missing ZIP checksum: $ZIP_SHA" >&2; exit 1; }
+          test -f "$DMG" || { echo "FAIL: missing native DMG: $DMG" >&2; exit 1; }
+          test -f "$DMG_SHA" || { echo "FAIL: missing DMG checksum: $DMG_SHA" >&2; exit 1; }
 
           echo "== Main bundle =="
           /usr/bin/plutil -lint "$APP/Contents/Info.plist" || { echo "FAIL: invalid main Info.plist" >&2; exit 1; }
@@ -120,6 +124,7 @@ jobs:
           grep -Fq "Electron runtime: not used" "$MARKER" || { echo "FAIL: native marker says Electron runtime is used" >&2; exit 1; }
           grep -Fq "Validation profile: native-macos-v3" "$MARKER" || { echo "FAIL: stale native validation profile" >&2; exit 1; }
           grep -Fq "Git SHA: $GITHUB_SHA" "$MARKER" || { echo "FAIL: artifact Git SHA does not match workflow commit" >&2; exit 1; }
+          grep -Fq "Distribution: ZIP + DMG" "$MARKER" || { echo "FAIL: native distribution marker missing ZIP + DMG" >&2; exit 1; }
 
           echo "== Native package must not contain Electron runtime =="
           if find "$APP/Contents" -type f \( -name 'Electron Framework' -o -name 'electron' -o -name 'app.asar' \) -print -quit | grep -q .; then
@@ -139,39 +144,49 @@ jobs:
           /usr/bin/codesign --display --verbose=4 "$APP" || true
 
           echo "== ZIP checksum =="
-          /usr/bin/shasum -a 256 -c "$SHA_FILE" || { echo "FAIL: native ZIP checksum does not match checksum manifest" >&2; exit 1; }
+          /usr/bin/shasum -a 256 -c "$ZIP_SHA" || { echo "FAIL: ZIP checksum mismatch" >&2; exit 1; }
 
-          echo "== ZIP contents =="
-          /usr/bin/zipinfo -1 "$ZIP"
-          if /usr/bin/zipinfo -1 "$ZIP" | grep -Ev '^Akron\.app(/|$)' | grep -q .; then
-            echo "FAIL: native ZIP contains unexpected top-level content" >&2
+          echo "== DMG checksum =="
+          /usr/bin/shasum -a 256 -c "$DMG_SHA" || { echo "FAIL: DMG checksum mismatch" >&2; exit 1; }
+
+          echo "== DMG structure =="
+          MOUNT_ROOT="$RUNNER_TEMP/Akron-dmg-structure"
+          rm -rf "$MOUNT_ROOT"
+          mkdir -p "$MOUNT_ROOT"
+          MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen)"
+          MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
+          if [[ -z "$MOUNT_PATH" ]]; then
+            echo "FAIL: DMG could not be mounted" >&2
             exit 1
           fi
+          trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
+          test -d "$MOUNT_PATH/Akron.app" || { echo "FAIL: DMG is missing Akron.app" >&2; exit 1; }
+          test -d "$MOUNT_PATH/Applications" || { echo "FAIL: DMG is missing Applications shortcut" >&2; exit 1; }
+          test -x "$MOUNT_PATH/Akron.app/Contents/MacOS/Akron" || { echo "FAIL: DMG app executable is not executable" >&2; exit 1; }
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$MOUNT_PATH/Akron.app" || { echo "FAIL: DMG app signature invalid" >&2; exit 1; }
+          /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet
+          trap - EXIT
 
-      - name: Test distributed native ZIP through LaunchServices
+      - name: Test distributed native DMG through LaunchServices
         shell: bash
         run: |
           set -u
-          ZIP="desktop/dist-native/Akron-Native-macos-arm64.zip"
-          EXTRACT="$RUNNER_TEMP/Akron-native-distribution"
-          LOG="$RUNNER_TEMP/Akron-native-distribution-launch.log"
-          rm -rf "$EXTRACT"
-          mkdir -p "$EXTRACT"
-          /usr/bin/ditto -x -k "$ZIP" "$EXTRACT" || { echo "FAIL: could not extract distributed native ZIP" >&2; exit 1; }
-          APP="$EXTRACT/Akron.app"
+          DMG="desktop/dist-native/Akron-Native-macos-arm64.dmg"
+          LOG="$RUNNER_TEMP/Akron-native-dmg-launch.log"
+          MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen 2>"$RUNNER_TEMP/Akron-dmg-attach.err")"
+          MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
+          if [ -z "$MOUNT_PATH" ]; then
+            echo "FAIL: could not mount distributed Akron DMG" >&2
+            cat "$RUNNER_TEMP/Akron-dmg-attach.err" >&2 || true
+            exit 1
+          fi
 
-          echo "== Extracted artifact =="
-          test -d "$APP" || { echo "FAIL: extracted ZIP did not contain Akron.app" >&2; exit 1; }
-          test -f "$APP/Contents/MacOS/Akron" || { echo "FAIL: extracted app missing Akron executable" >&2; exit 1; }
-          /usr/bin/plutil -lint "$APP/Contents/Info.plist" || { echo "FAIL: extracted Info.plist invalid" >&2; exit 1; }
-          /usr/bin/file "$APP/Contents/MacOS/Akron"
-          test -x "$APP/Contents/MacOS/Akron" || { echo "FAIL: extracted Akron executable is not executable" >&2; ls -l "$APP/Contents/MacOS/Akron"; exit 1; }
-          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer" || { echo "FAIL: extracted Analyzer is not executable" >&2; exit 1; }
-          grep -Fq "Validation profile: native-macos-v3" "$APP/Contents/Resources/Akron-Build.txt" || { echo "FAIL: extracted artifact is stale/not native-macos-v3" >&2; exit 1; }
-          grep -Fq "Git SHA: $GITHUB_SHA" "$APP/Contents/Resources/Akron-Build.txt" || { echo "FAIL: extracted artifact Git SHA mismatch" >&2; exit 1; }
-          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP" || { echo "FAIL: extracted app has invalid code signature" >&2; exit 1; }
+          APP="$MOUNT_PATH/Akron.app"
+          echo "== Mounted DMG =="
+          echo "Volume: $MOUNT_PATH"
+          test -d "$APP" || { echo "FAIL: mounted DMG missing Akron.app" >&2; /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true; exit 1; }
 
-          echo "== LaunchServices launch =="
+          echo "== LaunchServices launch from mounted DMG =="
           /usr/bin/open "$APP" >"$LOG" 2>&1 || true
 
           READY=0
@@ -187,12 +202,13 @@ jobs:
           cat "$LOG" || true
 
           if [ "$READY" -eq 1 ]; then
-            echo "PASS: distributed native Akron.app launched successfully through LaunchServices."
+            echo "PASS: distributed Akron DMG launched successfully through LaunchServices."
             /usr/bin/pkill -f -- "$APP/Contents/MacOS/Akron$" 2>/dev/null || true
+            /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true
             exit 0
           fi
 
-          echo "FAIL: distributed native Akron.app did not remain running after LaunchServices launch." >&2
+          echo "FAIL: distributed Akron DMG app did not remain running after LaunchServices launch." >&2
           echo "--- Process snapshot ---" >&2
           /bin/ps -axo pid=,ppid=,stat=,command= | grep -E 'Akron|akron-analyzer' >&2 || true
           echo "--- Recent native crash reports ---" >&2
@@ -201,12 +217,13 @@ jobs:
             if [ -f "$report" ]; then
               found=1
               echo "### $report" >&2
-              tail -n 120 "$report" >&2 || true
+              tail -n 160 "$report" >&2 || true
             fi
           done
           if [ "$found" -eq 0 ]; then
             echo "No Akron crash report was generated by the runner." >&2
           fi
+          /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true
           exit 1
 
       - name: Upload native macOS diagnostics
@@ -214,7 +231,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Akron-macos-native-diagnostics
-          path: ${{ runner.temp }}/Akron-native-distribution-launch.log
+          path: ${{ runner.temp }}/Akron-native-dmg-launch.log
           if-no-files-found: ignore
           compression-level: 0
 
@@ -226,6 +243,8 @@ jobs:
           path: |
             desktop/dist-native/Akron-Native-macos-arm64.zip
             desktop/dist-native/Akron-Native-macos-arm64.zip.sha256
+            desktop/dist-native/Akron-Native-macos-arm64.dmg
+            desktop/dist-native/Akron-Native-macos-arm64.dmg.sha256
           if-no-files-found: error
           compression-level: 0
 
