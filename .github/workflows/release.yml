@@ -11,6 +11,7 @@ on:
       - 'tests/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -163,9 +164,11 @@ jobs:
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow build.yml \
-              --limit 20 \
+              --event push \
+              --limit 50 \
               --json databaseId,status,conclusion,headBranch,event \
-              --jq 'map(select(.headBranch == env.RELEASE_TAG and .event == "push")) | .[0].databaseId // empty')"
+              --jq ".[] | select(.headBranch == \"$RELEASE_TAG\" and .event == \"push\") | .databaseId" | head -n 1)"
+
             if [[ -n "$run_id" ]]; then
               status="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
               conclusion="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion // empty')"
