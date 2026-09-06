@@ -184,6 +184,7 @@ function createWindow(): void {
 ipcMain.handle('startup:prepare', async () => {
   const workspace = join(app.getPath('userData'), 'workspace');
   const analyzer = analyzerBinaryPath();
+  const adapter = adapterBinaryPath();
 
   logStartup('Startup preparation requested.');
   const stages = [
@@ -198,6 +199,10 @@ ipcMain.handle('startup:prepare', async () => {
     {
       message: 'Verifying Akron Analyzer',
       action: () => existsSync(analyzer),
+    },
+    {
+      message: 'Verifying Akron Adapter',
+      action: () => existsSync(adapter),
     },
     {
       message: 'Checking target platform',
@@ -226,7 +231,7 @@ ipcMain.handle('startup:prepare', async () => {
     });
   }
 
-  return { workspace, analyzer };
+  return { workspace, analyzer, adapter };
 });
 
 ipcMain.handle('dialog:pick-game-folder', async () => {
