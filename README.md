@@ -1,5 +1,9 @@
 <div align="center">
 
+<p>
+  <img src="resources/icon.jpeg" alt="Akron icon" width="180">
+</p>
+
 # Akron
 
 <p>
@@ -10,11 +14,6 @@
   Akron is being built as a macOS-first desktop application with an Electron + TypeScript interface and Rust-based analysis and adaptation engines.
 </p>
 
-<p>
-  <img src="resources/icon.jpeg" alt="Akron icon" width="180">
-</p>
-
-[![Rust CI](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/rust.yml?label=Rust%20CI)](https://github.com/apxllo123/akron/actions/workflows/rust.yml)
 [![Build Akron](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/build.yml?label=Build)](https://github.com/apxllo123/akron/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/apxllo123/akron)](LICENSE)
 
@@ -123,7 +122,7 @@ Implemented today:
 - Electron + TypeScript desktop shell
 - Native game-folder selection
 - Analyzer execution from the desktop application
-- Adapter plan execution from the Electron desktop path
+- Adapter plan execution from the desktop application
 - macOS ARM64 packaging
 - Windows application packaging
 - Rust formatting, compilation, Clippy, tests, and release-build CI
