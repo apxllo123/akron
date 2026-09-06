@@ -1,10 +1,11 @@
-use akron_analyzer::GameProfile;
+use akron_analyzer::{BinaryDependency, GameProfile};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AdaptationPlan {
     pub steps: Vec<AdaptationStep>,
     pub required_modules: Vec<String>,
+    pub dependency_resolutions: Vec<DependencyResolution>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -24,9 +25,25 @@ pub enum StepStatus {
     Blocked,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DependencyResolution {
+    pub dependency: BinaryDependency,
+    pub kind: DependencyResolutionKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyResolutionKind {
+    BundledGame,
+    WindowsPlatform,
+    KnownRuntime,
+    Unresolved,
+}
+
 pub fn build_plan(profile: &GameProfile) -> AdaptationPlan {
     let mut steps = Vec::new();
     let mut modules = Vec::new();
+    let dependency_resolutions = resolve_dependencies(profile);
 
     add_step(
         &mut steps,
@@ -133,15 +150,28 @@ pub fn build_plan(profile: &GameProfile) -> AdaptationPlan {
         );
     }
 
-    if !profile.unresolved_imports.is_empty() {
+    if dependency_resolutions
+        .iter()
+        .any(|resolution| resolution.kind == DependencyResolutionKind::Unresolved)
+    {
         add_step(
             &mut steps,
             &mut modules,
             "resolve-dependencies",
-            "Resolve bundled dependencies",
-            "The analyzer found imports that are not present in the supplied game files. These must be resolved before a build can be considered complete.",
+            "Resolve game dependencies",
+            "The analyzer found imports that are not present in the supplied game files and are not known platform/runtime dependencies. These must be resolved before a build can be considered complete.",
             "core.dependencies",
             StepStatus::Blocked,
+        );
+    } else if !dependency_resolutions.is_empty() {
+        add_step(
+            &mut steps,
+            &mut modules,
+            "resolve-dependencies",
+            "Resolve game dependencies",
+            "All detected binary imports have an explicit bundled-game, Windows-platform, or known-runtime resolution.",
+            "core.dependencies",
+            StepStatus::Ready,
         );
     }
 
@@ -192,7 +222,81 @@ pub fn build_plan(profile: &GameProfile) -> AdaptationPlan {
     AdaptationPlan {
         steps,
         required_modules: modules,
+        dependency_resolutions,
     }
+}
+
+fn resolve_dependencies(profile: &GameProfile) -> Vec<DependencyResolution> {
+    profile
+        .dependencies
+        .iter()
+        .map(|dependency| {
+            let kind = if profile.unresolved_imports.contains(dependency) {
+                DependencyResolutionKind::Unresolved
+            } else if is_known_runtime(&dependency.library) {
+                DependencyResolutionKind::KnownRuntime
+            } else if is_windows_platform(&dependency.library) {
+                DependencyResolutionKind::WindowsPlatform
+            } else {
+                // Analyzer only excludes bundled files and platform files from
+                // unresolved_imports, so a remaining dependency is bundled.
+                DependencyResolutionKind::BundledGame
+            };
+            DependencyResolution {
+                dependency: dependency.clone(),
+                kind,
+            }
+        })
+        .collect()
+}
+
+fn is_known_runtime(library: &str) -> bool {
+    matches!(
+        library,
+        "vcruntime140.dll"
+            | "vcruntime140_1.dll"
+            | "msvcp140.dll"
+            | "ucrtbase.dll"
+            | "msvcp120.dll"
+            | "msvcr120.dll"
+            | "msvcp110.dll"
+            | "msvcr110.dll"
+            | "mscoree.dll"
+    )
+}
+
+fn is_windows_platform(library: &str) -> bool {
+    matches!(
+        library,
+        "kernel32.dll"
+            | "kernelbase.dll"
+            | "ntdll.dll"
+            | "user32.dll"
+            | "gdi32.dll"
+            | "advapi32.dll"
+            | "shell32.dll"
+            | "ole32.dll"
+            | "oleaut32.dll"
+            | "combase.dll"
+            | "ws2_32.dll"
+            | "winhttp.dll"
+            | "winmm.dll"
+            | "hid.dll"
+            | "d3d9.dll"
+            | "d3d9_43.dll"
+            | "d3d10.dll"
+            | "d3d10_1.dll"
+            | "d3d11.dll"
+            | "d3d12.dll"
+            | "dxgi.dll"
+            | "opengl32.dll"
+            | "vulkan-1.dll"
+            | "xaudio2_7.dll"
+            | "xaudio2_8.dll"
+            | "xaudio2_9.dll"
+            | "xinput1_3.dll"
+            | "xinput1_4.dll"
+    )
 }
 
 fn add_translation_step(
@@ -250,14 +354,13 @@ fn slug(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{StepStatus, build_plan};
+    use super::{DependencyResolutionKind, StepStatus, build_plan};
     use akron_analyzer::profile::{
-        ExecutableProfile, GameProfile, GraphicsRequirements, ProtectionSummary,
+        BinaryDependency, ExecutableProfile, GameProfile, GraphicsRequirements, ProtectionSummary,
     };
 
-    #[test]
-    fn creates_game_specific_graphics_steps_without_faking_readiness() {
-        let profile = GameProfile {
+    fn base_profile() -> GameProfile {
+        GameProfile {
             executables: vec![ExecutableProfile {
                 path: "game.exe".to_owned(),
                 architecture: Some("x86_64".to_owned()),
@@ -265,16 +368,19 @@ mod tests {
             }],
             pe_binaries: Vec::new(),
             dependencies: Vec::new(),
-            graphics: GraphicsRequirements {
-                direct3d11: true,
-                dxgi: true,
-                ..GraphicsRequirements::default()
-            },
+            graphics: GraphicsRequirements::default(),
             windows_apis: Vec::new(),
             runtimes: Vec::new(),
             unresolved_imports: Vec::new(),
             protections: ProtectionSummary::default(),
-        };
+        }
+    }
+
+    #[test]
+    fn creates_game_specific_graphics_steps_without_faking_readiness() {
+        let mut profile = base_profile();
+        profile.graphics.direct3d11 = true;
+        profile.graphics.dxgi = true;
 
         let plan = build_plan(&profile);
         assert!(
@@ -295,20 +401,82 @@ mod tests {
     }
 
     #[test]
-    fn unresolved_imports_block_dependency_resolution() {
-        let profile = GameProfile {
-            executables: Vec::new(),
-            pe_binaries: Vec::new(),
-            dependencies: Vec::new(),
-            graphics: GraphicsRequirements::default(),
-            windows_apis: Vec::new(),
-            runtimes: Vec::new(),
-            unresolved_imports: vec![akron_analyzer::profile::BinaryDependency {
+    fn resolves_dependency_classes_explicitly() {
+        let mut profile = base_profile();
+        profile.dependencies = vec![
+            BinaryDependency {
                 importer: "game.exe".to_owned(),
                 library: "renderer.dll".to_owned(),
-            }],
-            protections: ProtectionSummary::default(),
-        };
+            },
+            BinaryDependency {
+                importer: "game.exe".to_owned(),
+                library: "kernel32.dll".to_owned(),
+            },
+            BinaryDependency {
+                importer: "game.exe".to_owned(),
+                library: "vcruntime140.dll".to_owned(),
+            },
+            BinaryDependency {
+                importer: "game.exe".to_owned(),
+                library: "missing.dll".to_owned(),
+            },
+        ];
+        profile.unresolved_imports = vec![BinaryDependency {
+            importer: "game.exe".to_owned(),
+            library: "missing.dll".to_owned(),
+        }];
+
+        let plan = build_plan(&profile);
+        assert_eq!(plan.dependency_resolutions.len(), 4);
+        assert_eq!(
+            plan.dependency_resolutions[0].kind,
+            DependencyResolutionKind::BundledGame
+        );
+        assert_eq!(
+            plan.dependency_resolutions[1].kind,
+            DependencyResolutionKind::WindowsPlatform
+        );
+        assert_eq!(
+            plan.dependency_resolutions[2].kind,
+            DependencyResolutionKind::KnownRuntime
+        );
+        assert_eq!(
+            plan.dependency_resolutions[3].kind,
+            DependencyResolutionKind::Unresolved
+        );
+        assert!(plan.steps.iter().any(|step| {
+            step.id == "resolve-dependencies" && step.status == StepStatus::Blocked
+        }));
+    }
+
+    #[test]
+    fn resolved_dependencies_make_dependency_step_ready() {
+        let mut profile = base_profile();
+        profile.dependencies = vec![
+            BinaryDependency {
+                importer: "game.exe".to_owned(),
+                library: "renderer.dll".to_owned(),
+            },
+            BinaryDependency {
+                importer: "game.exe".to_owned(),
+                library: "kernel32.dll".to_owned(),
+            },
+        ];
+
+        let plan = build_plan(&profile);
+        assert!(plan.steps.iter().any(|step| {
+            step.id == "resolve-dependencies" && step.status == StepStatus::Ready
+        }));
+    }
+
+    #[test]
+    fn unresolved_imports_block_dependency_resolution() {
+        let mut profile = base_profile();
+        profile.unresolved_imports = vec![BinaryDependency {
+            importer: "game.exe".to_owned(),
+            library: "renderer.dll".to_owned(),
+        }];
+        profile.dependencies = profile.unresolved_imports.clone();
 
         let plan = build_plan(&profile);
         assert!(
