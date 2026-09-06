@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   macos:
-    name: Build macOS app (ARM64)
+    name: Build macOS app (ARM64 native)
     runs-on: macos-26
 
     steps:
@@ -66,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           APP="desktop/dist-native/Akron.app"
-          ZIP="desktop/dist-native/Akron-macos-arm64.zip"
+          ZIP="desktop/dist-native/Akron-Native-macos-arm64.zip"
           test -d "$APP"
           test -f "$ZIP"
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
@@ -74,16 +74,19 @@ jobs:
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
           test -f "$APP/Contents/Resources/ui/index.html"
           test -f "$APP/Contents/Resources/ui/renderer.js"
+          test -f "$APP/Contents/Resources/Akron-Build.txt"
+          grep -q "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt"
+          test -f "$APP/Contents/Resources/Akron.icns"
           /usr/bin/file "$APP/Contents/MacOS/Akron"
           /usr/bin/codesign --verify --verbose=2 "$APP"
 
-      - name: Test distributed ZIP
+      - name: Test distributed native ZIP
         shell: bash
         run: |
           set -u
-          ZIP="desktop/dist-native/Akron-macos-arm64.zip"
-          EXTRACT="$RUNNER_TEMP/Akron-distribution"
-          LOG="$RUNNER_TEMP/Akron-distribution-launch.log"
+          ZIP="desktop/dist-native/Akron-Native-macos-arm64.zip"
+          EXTRACT="$RUNNER_TEMP/Akron-native-distribution"
+          LOG="$RUNNER_TEMP/Akron-native-distribution-launch.log"
           rm -rf "$EXTRACT"
           mkdir -p "$EXTRACT"
           /usr/bin/ditto -x -k "$ZIP" "$EXTRACT"
@@ -94,9 +97,12 @@ jobs:
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
           test -f "$APP/Contents/Resources/ui/index.html"
           test -f "$APP/Contents/Resources/ui/renderer.js"
+          test -f "$APP/Contents/Resources/Akron-Build.txt"
+          grep -q "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt"
+          test -f "$APP/Contents/Resources/Akron.icns"
           /usr/bin/codesign --verify --verbose=2 "$APP"
 
-          echo "Launching native Akron.app through LaunchServices"
+          echo "Launching exact native distributed Akron.app through LaunchServices"
           /usr/bin/open "$APP" >"$LOG" 2>&1 || true
 
           READY=0
@@ -118,21 +124,21 @@ jobs:
           echo "Native distributed Akron.app failed to remain running."
           exit 1
 
-      - name: Upload macOS launch diagnostics
+      - name: Upload native macOS app
+        uses: actions/upload-artifact@v7
+        with:
+          name: Akron-macos-arm64-native
+          path: desktop/dist-native/Akron-Native-macos-arm64.zip
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload native macOS diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: Akron-macos-launch-diagnostics
-          path: ${{ runner.temp }}/Akron-distribution-launch.log
+          name: Akron-macos-native-diagnostics
+          path: ${{ runner.temp }}/Akron-native-distribution-launch.log
           if-no-files-found: ignore
-          compression-level: 0
-
-      - name: Upload macOS app
-        uses: actions/upload-artifact@v7
-        with:
-          name: Akron-macos-arm64
-          path: desktop/dist-native/Akron-macos-arm64.zip
-          if-no-files-found: error
           compression-level: 0
 
   windows:
