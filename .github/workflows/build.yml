@@ -63,6 +63,17 @@ jobs:
           test -x "$APP/Contents/MacOS/Akron"
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
           /usr/bin/file "$APP/Contents/MacOS/Akron"
+
+          FRAMEWORKS="$APP/Contents/Frameworks"
+          for helper in "Electron Helper.app" "Electron Helper (GPU).app" "Electron Helper (Plugin).app" "Electron Helper (Renderer).app"; do
+            HELPER_APP="$FRAMEWORKS/$helper"
+            test -d "$HELPER_APP"
+            /usr/bin/plutil -lint "$HELPER_APP/Contents/Info.plist"
+            EXECUTABLE="$(/usr/bin/plutil -extract CFBundleExecutable raw "$HELPER_APP/Contents/Info.plist")"
+            test -n "$EXECUTABLE"
+            test -x "$HELPER_APP/Contents/MacOS/$EXECUTABLE"
+          done
+
           /usr/bin/codesign --verify --verbose=2 "$APP"
           /usr/bin/codesign -dv --verbose=4 "$APP" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
 
