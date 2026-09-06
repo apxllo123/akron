@@ -2,7 +2,7 @@
 
 [<img src="https://raw.githubusercontent.com/apxllo123/duxo/main/resources/icon.png?v=12" width="144" alt="Duxo icon"/>](https://github.com/apxllo123/duxo)
 
-# Duxo
+#  ✦ Duxo ✦
 
 <strong>Universal Game Analysis & Adaptation</strong>
 
