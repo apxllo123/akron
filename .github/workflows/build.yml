@@ -176,7 +176,7 @@ jobs:
 
           READY=0
           for _ in $(seq 1 15); do
-            if pgrep -f "$APP/Contents/MacOS/Akron" >/dev/null 2>&1; then
+            if /usr/bin/pgrep -f -- "$APP/Contents/MacOS/Akron$" >/dev/null 2>&1; then
               READY=1
               break
             fi
@@ -188,13 +188,13 @@ jobs:
 
           if [ "$READY" -eq 1 ]; then
             echo "PASS: distributed native Akron.app launched successfully through LaunchServices."
-            pkill -f "$APP/Contents/MacOS/Akron" 2>/dev/null || true
+            /usr/bin/pkill -f -- "$APP/Contents/MacOS/Akron$" 2>/dev/null || true
             exit 0
           fi
 
           echo "FAIL: distributed native Akron.app did not remain running after LaunchServices launch." >&2
           echo "--- Process snapshot ---" >&2
-          pgrep -alf 'Akron|akron-analyzer' >&2 || true
+          /bin/ps -axo pid=,ppid=,stat=,command= | grep -E 'Akron|akron-analyzer' >&2 || true
           echo "--- Recent native crash reports ---" >&2
           found=0
           for report in "$HOME"/Library/Logs/DiagnosticReports/Akron*.crash "$HOME"/Library/Logs/DiagnosticReports/Akron*.ips; do
