@@ -205,12 +205,7 @@ fn apply_import_requirements(
 ) {
     let library = normalize_library(&import.library);
     let symbol = import.name.as_deref().unwrap_or("ordinal");
-    let evidence = format!(
-        "{} -> {}!{}",
-        binary.display(),
-        library,
-        symbol
-    );
+    let evidence = format!("{} -> {}!{}", binary.display(), library, symbol);
 
     match library.as_str() {
         "d3d9.dll" | "d3d9_43.dll" => graphics.direct3d9 = true,
