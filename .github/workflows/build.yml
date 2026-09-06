@@ -79,22 +79,26 @@ jobs:
 
           echo "== Paths =="
           printf 'APP=%s\nZIP=%s\n' "$APP" "$ZIP"
-          test -d "$APP" || { echo "Missing app bundle" >&2; exit 1; }
-          test -f "$ZIP" || { echo "Missing native ZIP" >&2; exit 1; }
+          test -d "$APP" || { echo "Missing app bundle: $APP" >&2; exit 1; }
+          test -f "$ZIP" || { echo "Missing native ZIP: $ZIP" >&2; exit 1; }
 
           echo "== Main bundle =="
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
           /usr/bin/plutil -p "$APP/Contents/Info.plist"
-          test -f "$APP/Contents/MacOS/Akron" || { echo "Missing Akron executable" >&2; exit 1; }
-          MODE="$(/usr/bin/stat -f '%Sp %OLp' "$APP/Contents/MacOS/Akron")"
+          MAIN="$APP/Contents/MacOS/Akron"
+          test -f "$MAIN" || { echo "Missing main executable: $MAIN" >&2; exit 1; }
+          MODE="$(/usr/bin/stat -f '%Sp %OLp' "$MAIN")"
           echo "Akron mode: $MODE"
-          /usr/bin/file "$APP/Contents/MacOS/Akron"
-          test -x "$APP/Contents/MacOS/Akron" || { echo "Akron executable is not executable" >&2; ls -l "$APP/Contents/MacOS/Akron"; exit 1; }
+          /usr/bin/file "$MAIN"
+          test -x "$MAIN" || { echo "Main executable is not executable: $MAIN (mode $MODE)" >&2; exit 1; }
+          /usr/bin/otool -L "$MAIN" || true
 
           echo "== Analyzer =="
           ANALYZER="$APP/Contents/Resources/akron-runtime/akron-analyzer"
-          test -f "$ANALYZER" || { echo "Missing Analyzer" >&2; exit 1; }
-          test -x "$ANALYZER" || { echo "Analyzer is not executable" >&2; ls -l "$ANALYZER"; exit 1; }
+          test -f "$ANALYZER" || { echo "Missing Analyzer: $ANALYZER" >&2; exit 1; }
+          ANALYZER_MODE="$(/usr/bin/stat -f '%Sp %OLp' "$ANALYZER")"
+          echo "Analyzer mode: $ANALYZER_MODE"
+          test -x "$ANALYZER" || { echo "Analyzer is not executable: $ANALYZER (mode $ANALYZER_MODE)" >&2; exit 1; }
           /usr/bin/file "$ANALYZER"
 
           echo "== Renderer =="
@@ -104,9 +108,10 @@ jobs:
 
           echo "== Native marker =="
           MARKER="$APP/Contents/Resources/Akron-Build.txt"
-          test -f "$MARKER" || { echo "Missing native build marker" >&2; exit 1; }
+          test -f "$MARKER" || { echo "Missing native build marker: $MARKER" >&2; exit 1; }
           grep -Fq "Host: AppKit + WKWebView" "$MARKER" || { echo "Native marker has wrong host" >&2; cat "$MARKER"; exit 1; }
           grep -Fq "Electron runtime: not used" "$MARKER" || { echo "Native marker indicates Electron runtime" >&2; cat "$MARKER"; exit 1; }
+          grep -Fq "Validation profile: native-macos-v2" "$MARKER" || { echo "Wrong/stale native validation profile" >&2; cat "$MARKER"; exit 1; }
 
           echo "== Native package must not contain Electron runtime =="
           if find "$APP/Contents" -type f \( -name 'Electron Framework' -o -name 'electron' -o -name 'app.asar' \) -print -quit | grep -q .; then
@@ -122,7 +127,7 @@ jobs:
           fi
 
           echo "== Code signature =="
-          /usr/bin/codesign --verify --verbose=2 "$APP"
+          /usr/bin/codesign --verify --verbose=2 "$APP" || { echo "Native app code signature invalid" >&2; exit 1; }
 
       - name: Test distributed native ZIP through LaunchServices
         shell: bash
@@ -141,10 +146,8 @@ jobs:
           test -f "$APP/Contents/MacOS/Akron" || { echo "Extracted app is missing Akron executable" >&2; exit 1; }
           /usr/bin/file "$APP/Contents/MacOS/Akron"
           test -x "$APP/Contents/MacOS/Akron" || { echo "Extracted Akron executable is not executable" >&2; ls -l "$APP/Contents/MacOS/Akron"; exit 1; }
-          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer" || { echo "Extracted Analyzer is not executable" >&2; exit 1; }
-          test -f "$APP/Contents/Resources/ui/index.html" || { echo "Extracted renderer index missing" >&2; exit 1; }
-          test -f "$APP/Contents/Resources/Akron-Build.txt" || { echo "Extracted native marker missing" >&2; exit 1; }
-          grep -Fq "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt" || { echo "Extracted package is not marked native" >&2; exit 1; }
+          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer" || { echo "Extracted Analyzer is not executable" >&2; ls -l "$APP/Contents/Resources/akron-runtime/akron-analyzer"; exit 1; }
+          grep -Fq "Validation profile: native-macos-v2" "$APP/Contents/Resources/Akron-Build.txt" || { echo "Extracted artifact is stale or not native-macos-v2" >&2; exit 1; }
           /usr/bin/codesign --verify --verbose=2 "$APP" || { echo "Extracted app has invalid code signature" >&2; exit 1; }
 
           echo "== LaunchServices launch =="
@@ -160,10 +163,10 @@ jobs:
           done
 
           echo "--- LaunchServices output ---"
-          cat "$LOG"
+          cat "$LOG" || true
 
           if [ "$READY" -eq 1 ]; then
-            echo "Native distributed Akron.app launched successfully."
+            echo "Native distributed Akron.app launched successfully through LaunchServices."
             pkill -f "$APP/Contents/MacOS/Akron" 2>/dev/null || true
             exit 0
           fi
@@ -172,7 +175,7 @@ jobs:
           echo "--- Process snapshot ---" >&2
           pgrep -alf 'Akron|akron-analyzer' >&2 || true
           echo "--- Recent native crash reports ---" >&2
-          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -type f -name 'Akron*' -print -exec tail -n 80 {} \; 2>/dev/null || true
+          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -type f \( -name 'Akron*.crash' -o -name 'Akron*.ips' \) -print -exec tail -n 100 {} \; 2>/dev/null || true
           exit 1
 
       - name: Upload native macOS diagnostics
