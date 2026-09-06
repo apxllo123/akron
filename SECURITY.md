@@ -1,16 +1,10 @@
+# Akron Security
+
 <div align="center">
 
-[<img src="https://raw.githubusercontent.com/apxllo123/akron/main/resources/icon.png?v=13" width="144" alt="Akron icon"/>](https://github.com/apxllo123/akron)
+<strong>Security Policy & Responsible Disclosure</strong>
 
-  <h1 align="center">Akron Security</h1>
-
-  <p align="center">
-    <strong>Security Policy & Responsible Disclosure</strong>
-  </p>
-
-  <p align="center">
-    Security guidance for Akron source code, desktop components, binary analysis, build automation, and published application artifacts.
-  </p>
+Security guidance for Akron source code, desktop components, binary analysis, build automation, and published application artifacts.
 
 [![Security](https://img.shields.io/badge/Security-responsible--disclosure-2ea44f?style=for-the-badge&color=2ea44f)](SECURITY.md)
 [![License](https://img.shields.io/github/license/apxllo123/akron?style=for-the-badge&color=2ea043)](LICENSE)
