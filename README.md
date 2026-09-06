@@ -1,25 +1,20 @@
 <div align="center">
 
-<p>
-  <img src="resources/icon.jpeg" alt="Akron icon" width="180">
-</p>
+[<img src="https://raw.githubusercontent.com/apxllo123/akron/refs/heads/main/resources/icon.png?v=3" width="144"/>](https://github.com/apxllo123/akron)
 
-# Akron
+  <h1 align="center">Akron</h1>
 
-<p>
-  <strong>Akron is an experimental universal game analysis and adaptation platform designed to deeply understand a game's complete file set before attempting to adapt it.</strong>
-</p>
+  <p align="center">
+    <strong>Akron is an experimental universal game analysis and adaptation platform designed to deeply understand a game's complete file set before attempting to adapt it.</strong>
+  </p>
 
-<p>
-  Akron is being built as a macOS-first desktop application with an Electron + TypeScript interface and Rust-based analysis and adaptation engines.
-</p>
+  <p align="center">
+    Akron is being built as a macOS-first desktop application with an Electron + TypeScript interface and Rust-based analysis and adaptation engines.
+  </p>
 
 [![Build Akron](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/build.yml?label=Build)](https://github.com/apxllo123/akron/actions/workflows/build.yml)
 [![Latest Release](https://img.shields.io/github/v/release/apxllo123/akron?display_name=tag&label=Release)](https://github.com/apxllo123/akron/releases)
 [![License](https://img.shields.io/github/license/apxllo123/akron)](LICENSE)
-
-**Current release:** `v0.1`  
-Release versions advance automatically by `0.1` for each published release (`0.1` → `0.2` → … → `4.1` → `4.2`).
 
 </div>
 
@@ -35,9 +30,9 @@ The current repository is the foundation for that system. The deep conversion en
 
 ## Branding
 
-The source artwork is stored at `resources/icon.jpeg` and is used as the repository's Akron artwork. The native macOS build converts this source image into the `.icns` format required by the application bundle, while Finder applies the normal macOS app-icon presentation.
+The canonical Akron icon is stored at `resources/icon.png`. It is a rounded-corner PNG with transparency and is used as the source artwork for application packaging. The original JPEG artwork remains available at `resources/icon.jpeg`.
 
-The source artwork remains separate from application code so platform-specific icon formats can be generated during builds without changing the original asset.
+The build system converts the canonical PNG into the platform-specific `.icns` and `.ico` assets required by macOS and Windows packaging.
 
 ## Architecture
 
@@ -145,7 +140,6 @@ Not finished yet:
 - Full online/API service implementation
 - Production signing and notarization
 - Windows native icon packaging from the source artwork
-- Transparent native icon asset generation from the JPEG source
 
 These are deliberate roadmap items rather than features the current build claims to provide.
 
@@ -205,15 +199,15 @@ npm start
 
 ## Releases
 
-Release builds are driven automatically by `.github/workflows/release.yml` whenever changes land on `main`, and the workflow can also be started manually.
+Release builds are driven automatically by `.github/workflows/release.yml` whenever important application changes land on `main`, and the workflow can also be started manually.
 
-The initial release is `v0.1`. Each subsequent release run reads the latest release tag and increments the minor release component by one:
+Public release tags use the sequence:
 
 ```text
-v0.1 → v0.2 → v0.3 → … → v4.1 → v4.2
+v0.1 → v0.2 → v0.3 → … → v0.9 → v1.0 → v1.1 → …
 ```
 
-The workflow updates the desktop package version and macOS bundle version together, creates the matching Git tag, and publishes a GitHub Release. The tag then triggers the normal Build Akron workflow automatically.
+The workflow updates the desktop package version and macOS bundle version together, creates the matching Git tag, and publishes a GitHub Release. The tag then triggers the Build Akron workflow, whose macOS artifacts are attached to the release.
 
 ## CI and builds
 
@@ -229,8 +223,6 @@ Akron keeps verification and packaging separate.
 
 The macOS workflow validates the application bundle, `Info.plist`, generated native icon, executable signature, native runtime presence, and executable architecture before uploading the artifact.
 
-The build workflow cancels older in-progress builds when a newer build for the same ref starts so stale builds do not consume runners unnecessarily.
-
 ## Project layout
 
 ```text
@@ -245,6 +237,7 @@ Akron/
 │   ├── resources/         # Packaged local runtime components
 │   └── macos/              # Native macOS host and packaging
 ├── resources/              # Repository-level artwork and assets
+│   ├── icon.png
 │   └── icon.jpeg
 ├── tests/                 # Cross-component and future integration tests
 ├── docs/                  # Architecture and platform documentation
