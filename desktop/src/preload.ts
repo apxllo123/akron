@@ -18,6 +18,7 @@ export interface AkronApi {
   }) => void): () => void;
   pickGameFolder(): Promise<string | null>;
   analyzeGame(gamePath: string): Promise<unknown>;
+  buildAdaptationPlan(profile: unknown): Promise<unknown>;
 }
 
 const api: AkronApi = {
@@ -32,6 +33,7 @@ const api: AkronApi = {
   },
   pickGameFolder: () => ipcRenderer.invoke('dialog:pick-game-folder'),
   analyzeGame: (gamePath) => ipcRenderer.invoke('analyzer:analyze', gamePath),
+  buildAdaptationPlan: (profile) => ipcRenderer.invoke('adapter:plan', profile),
 };
 
 contextBridge.exposeInMainWorld('akron', api);
