@@ -264,6 +264,7 @@ mod tests {
                 format: "PE".to_owned(),
             }],
             pe_binaries: Vec::new(),
+            dependencies: Vec::new(),
             graphics: GraphicsRequirements {
                 direct3d11: true,
                 dxgi: true,
@@ -298,6 +299,7 @@ mod tests {
         let profile = GameProfile {
             executables: Vec::new(),
             pe_binaries: Vec::new(),
+            dependencies: Vec::new(),
             graphics: GraphicsRequirements::default(),
             windows_apis: Vec::new(),
             runtimes: Vec::new(),
