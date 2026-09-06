@@ -254,14 +254,18 @@ mod tests {
         fs::write(&path, data).expect("write fixture");
 
         let before = fs::read(&path).expect("read fixture");
-        let signals = detect_protection_signals(&path, Path::new("fixture.exe"))
-            .expect("detect signals");
+        let signals =
+            detect_protection_signals(&path, Path::new("fixture.exe")).expect("detect signals");
         let after = fs::read(&path).expect("read fixture after analysis");
 
         assert_eq!(before, after);
         assert!(signals.packers_or_protectors.contains(&"UPX".to_owned()));
-        assert!(signals.packers_or_protectors.contains(&"VMProtect".to_owned()));
-        assert!(signals.anti_cheats.contains(&"Easy Anti-Cheat".to_owned()));
+        assert!(signals
+            .packers_or_protectors
+            .contains(&"VMProtect".to_owned()));
+        assert!(signals
+            .anti_cheats
+            .contains(&"Easy Anti-Cheat".to_owned()));
 
         fs::remove_file(path).expect("remove fixture");
     }
@@ -277,8 +281,8 @@ mod tests {
         data.extend_from_slice(b"UPX0");
         fs::write(&path, data).expect("write fixture");
 
-        let signals = detect_protection_signals(&path, Path::new("fixture.exe"))
-            .expect("detect signals");
+        let signals =
+            detect_protection_signals(&path, Path::new("fixture.exe")).expect("detect signals");
         assert!(signals.packers_or_protectors.contains(&"UPX".to_owned()));
 
         fs::remove_file(path).expect("remove fixture");
@@ -287,7 +291,10 @@ mod tests {
     #[test]
     fn ascii_marker_matching_is_case_insensitive() {
         assert!(contains_ascii_case_insensitive(b"vMpRoTeCt", b"vmprotect"));
-        assert!(!contains_ascii_case_insensitive(b"ordinary data", b"vmprotect"));
+        assert!(!contains_ascii_case_insensitive(
+            b"ordinary data",
+            b"vmprotect"
+        ));
     }
 
     #[test]
@@ -299,8 +306,8 @@ mod tests {
         let path = std::env::temp_dir().join(format!("akron-protection-clean-{unique}.exe"));
         fs::write(&path, b"ordinary executable data").expect("write fixture");
 
-        let signals = detect_protection_signals(&path, Path::new("fixture.exe"))
-            .expect("detect signals");
+        let signals =
+            detect_protection_signals(&path, Path::new("fixture.exe")).expect("detect signals");
         assert!(signals.packers_or_protectors.is_empty());
         assert!(signals.anti_cheats.is_empty());
 
