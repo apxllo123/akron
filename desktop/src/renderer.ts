@@ -7,17 +7,15 @@ declare global {
         platform: 'darwin' | 'win32';
         arch: string;
       }>;
-      prepareStartup(): Promise<{
-        workspace: string;
-        analyzer: string;
-      }>;
+      prepareStartup(): Promise<{ workspace: string; analyzer: string }>;
       onStartupProgress(listener: (progress: {
         message: string;
         percent: number;
         complete: boolean;
       }) => void): () => void;
       pickGameFolder(): Promise<string | null>;
-      analyzeGame(gamePath: string): Promise<unknown>;
+      analyzeGame(gamePath: string): Promise<AnalysisReport>;
+      buildAdaptationPlan(profile: GameProfile): Promise<AdaptationPlan>;
     };
   }
 }
@@ -33,11 +31,55 @@ interface GameManifestExecutable {
   path: string;
   format: string;
   architecture?: string;
+  protection?: {
+    packers_or_protectors: string[];
+    anti_cheats: string[];
+  };
+}
+
+interface GameProfile {
+  executables: Array<{
+    path: string;
+    architecture?: string;
+    format: string;
+  }>;
+  graphics: {
+    direct3d9: boolean;
+    direct3d10: boolean;
+    direct3d11: boolean;
+    direct3d12: boolean;
+    dxgi: boolean;
+    vulkan: boolean;
+    opengl: boolean;
+  };
+  windows_apis: Array<{ family: string; evidence: string[] }>;
+  runtimes: Array<{ name: string; evidence: string[] }>;
+  protections: {
+    packers_or_protectors: string[];
+    anti_cheats: string[];
+  };
 }
 
 interface GameManifest {
   files: GameManifestFile[];
   executables: GameManifestExecutable[];
+}
+
+interface AnalysisReport extends GameManifest {
+  profile: GameProfile;
+}
+
+interface AdaptationPlan {
+  steps: AdaptationStep[];
+  required_modules: string[];
+}
+
+interface AdaptationStep {
+  id: string;
+  title: string;
+  description: string;
+  module: string;
+  status: 'planned' | 'ready' | 'blocked';
 }
 
 const startup = document.querySelector<HTMLElement>('#startup');
@@ -47,7 +89,6 @@ const startupMessage = document.querySelector<HTMLElement>('#startup-message');
 const startupDetail = document.querySelector<HTMLElement>('#startup-detail');
 const startupStages = document.querySelector<HTMLElement>('#startup-stages');
 const appShell = document.querySelector<HTMLElement>('#app');
-
 const selectButton = document.querySelector<HTMLButtonElement>('#select-folder');
 const selectedPath = document.querySelector<HTMLElement>('#selected-path');
 const status = document.querySelector<HTMLElement>('#status');
@@ -58,6 +99,16 @@ const executablesValue = document.querySelector<HTMLElement>('#executables-value
 const peValue = document.querySelector<HTMLElement>('#pe-value');
 const sizeValue = document.querySelector<HTMLElement>('#size-value');
 const version = document.querySelector<HTMLElement>('#version');
+const graphicsValue = document.querySelector<HTMLElement>('#graphics-value');
+const apiValue = document.querySelector<HTMLElement>('#api-value');
+const runtimeValue = document.querySelector<HTMLElement>('#runtime-value');
+const protectionValue = document.querySelector<HTMLElement>('#protection-value');
+const planButton = document.querySelector<HTMLButtonElement>('#plan-conversion');
+const planCard = document.querySelector<HTMLElement>('#plan-card');
+const planSteps = document.querySelector<HTMLElement>('#plan-steps');
+const planCount = document.querySelector<HTMLElement>('#plan-count');
+
+let latestProfile: GameProfile | null = null;
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -74,12 +125,51 @@ function formatBytes(bytes: number): string {
 function setStatus(message: string, busy: boolean): void {
   if (status) status.textContent = message;
   if (selectButton) selectButton.disabled = busy;
+  if (planButton) planButton.disabled = busy || !latestProfile;
 }
 
 function showError(message: string | null): void {
   if (!error) return;
   error.textContent = message ?? '';
   error.hidden = message === null;
+}
+
+function renderTags(container: HTMLElement | null, values: string[], emptyLabel: string): void {
+  if (!container) return;
+  container.replaceChildren();
+  if (values.length === 0) {
+    const empty = document.createElement('span');
+    empty.className = 'muted';
+    empty.textContent = emptyLabel;
+    container.append(empty);
+    return;
+  }
+  for (const value of values) {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.textContent = value;
+    container.append(tag);
+  }
+}
+
+function renderProfile(profile: GameProfile): void {
+  const graphics: string[] = [];
+  if (profile.graphics.direct3d9) graphics.push('Direct3D 9');
+  if (profile.graphics.direct3d10) graphics.push('Direct3D 10');
+  if (profile.graphics.direct3d11) graphics.push('Direct3D 11');
+  if (profile.graphics.direct3d12) graphics.push('Direct3D 12');
+  if (profile.graphics.dxgi) graphics.push('DXGI');
+  if (profile.graphics.vulkan) graphics.push('Vulkan');
+  if (profile.graphics.opengl) graphics.push('OpenGL');
+
+  renderTags(graphicsValue, graphics, 'None detected');
+  renderTags(apiValue, profile.windows_apis.map((item) => item.family), 'None detected');
+  renderTags(runtimeValue, profile.runtimes.map((item) => item.name), 'None detected');
+  renderTags(
+    protectionValue,
+    [...profile.protections.packers_or_protectors, ...profile.protections.anti_cheats],
+    'No protection signals',
+  );
 }
 
 function renderManifest(manifest: GameManifest): void {
@@ -92,6 +182,43 @@ function renderManifest(manifest: GameManifest): void {
     sizeValue.textContent = formatBytes(manifest.files.reduce((total, item) => total + item.size, 0));
   }
   if (results) results.hidden = false;
+}
+
+function renderPlan(plan: AdaptationPlan): void {
+  if (!planCard || !planSteps || !planCount) return;
+  planSteps.replaceChildren();
+  planCount.textContent = `${plan.steps.length} ${plan.steps.length === 1 ? 'step' : 'steps'}`;
+
+  for (const [index, step] of plan.steps.entries()) {
+    const item = document.createElement('article');
+    item.className = `plan-step ${step.status}`;
+
+    const number = document.createElement('div');
+    number.className = 'plan-step-number';
+    number.textContent = String(index + 1).padStart(2, '0');
+
+    const body = document.createElement('div');
+    body.className = 'plan-step-body';
+
+    const title = document.createElement('h3');
+    title.textContent = step.title;
+    const description = document.createElement('p');
+    description.textContent = step.description;
+    const module = document.createElement('span');
+    module.className = 'plan-module';
+    module.textContent = step.module;
+
+    body.append(title, description, module);
+
+    const badge = document.createElement('span');
+    badge.className = 'plan-status';
+    badge.textContent = step.status === 'ready' ? 'Ready' : step.status === 'blocked' ? 'Blocked' : 'Planned';
+
+    item.append(number, body, badge);
+    planSteps.append(item);
+  }
+
+  planCard.hidden = false;
 }
 
 function updateStartup(progress: { message: string; percent: number; complete: boolean }): void {
@@ -145,6 +272,8 @@ async function initializeAkron(): Promise<void> {
 
 selectButton?.addEventListener('click', async () => {
   showError(null);
+  planCard?.setAttribute('hidden', '');
+  latestProfile = null;
   const path = await window.akron.pickGameFolder();
   if (!path) return;
 
@@ -153,13 +282,33 @@ selectButton?.addEventListener('click', async () => {
   if (results) results.hidden = true;
 
   try {
-    const manifest = (await window.akron.analyzeGame(path)) as GameManifest;
-    renderManifest(manifest);
+    const report = await window.akron.analyzeGame(path);
+    renderManifest(report);
+    latestProfile = report.profile;
+    renderProfile(report.profile);
     setStatus('Analysis complete', false);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     showError(message);
     setStatus('Analysis failed', false);
+  }
+});
+
+planButton?.addEventListener('click', async () => {
+  if (!latestProfile) return;
+  showError(null);
+  setStatus('Building conversion plan…', true);
+  planButton.disabled = true;
+  try {
+    const plan = await window.akron.buildAdaptationPlan(latestProfile);
+    renderPlan(plan);
+    setStatus('Conversion plan ready', false);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    showError(message);
+    setStatus('Plan generation failed', false);
+  } finally {
+    planButton.disabled = false;
   }
 });
 
