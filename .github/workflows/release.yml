@@ -15,7 +15,7 @@ concurrency:
 jobs:
   release:
     if: github.actor != 'github-actions[bot]'
-    name: Bump and tag Akron release
+    name: Bump and publish Akron release
     runs-on: ubuntu-latest
 
     steps:
@@ -78,19 +78,25 @@ jobs:
           const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
           packageJson.version = version;
           fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
-
-          const plistPath = 'desktop/macos/Info.plist';
-          let plist = fs.readFileSync(plistPath, 'utf8');
-          plist = plist.replace(
-            /(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]+(<\/string>)/,
-            `$1${version}$2`,
-          );
-          plist = plist.replace(
-            /(<key>CFBundleVersion<\/key>\s*<string>)[^<]+(<\/string>)/,
-            `$1${buildNumber}$2`,
-          );
-          fs.writeFileSync(plistPath, plist);
           NODE
+
+          python3 - <<'PY'
+          import plistlib
+          from pathlib import Path
+          import os
+
+          path = Path('desktop/macos/Info.plist')
+          with path.open('rb') as handle:
+              plist = plistlib.load(handle)
+
+          version = os.environ['RELEASE_VERSION']
+          build_number = os.environ['BUILD_NUMBER']
+          plist['CFBundleShortVersionString'] = version
+          plist['CFBundleVersion'] = build_number
+
+          with path.open('wb') as handle:
+              plistlib.dump(plist, handle, fmt=plistlib.FMT_XML, sort_keys=False)
+          PY
 
       - name: Verify version files
         env:
@@ -99,7 +105,12 @@ jobs:
         run: |
           set -euo pipefail
           package_version="$(node -p "require('./desktop/package.json').version")"
-          plist_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' desktop/macos/Info.plist)"
+          plist_version="$(python3 - <<'PY'
+          import plistlib
+          with open('desktop/macos/Info.plist', 'rb') as handle:
+              print(plistlib.load(handle)['CFBundleShortVersionString'])
+          PY
+          )"
           test "$package_version" = "$RELEASE_VERSION"
           test "$plist_version" = "$RELEASE_VERSION"
           echo "Verified application version: $RELEASE_VERSION"
