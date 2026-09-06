@@ -48,11 +48,11 @@ Icon: pending dedicated Akron asset
 Validation profile: native-macos-v3
 Build version: $BUILD_VERSION
 Git SHA: $BUILD_SHA
+Distribution: ZIP + DMG
 EOF
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
 
-# Ensure the launch binaries remain executable immediately before signing.
 chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
 
 SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
@@ -67,17 +67,54 @@ fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 /usr/bin/codesign --display --verbose=4 "$APP" || true
 
-# Re-assert permissions after signing and verify the final executable type.
 chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
 /usr/bin/file "$MACOS/Akron"
 /usr/bin/file "$RESOURCES/akron-runtime/akron-analyzer"
 
+# Keep the ZIP for scripting/debugging and add a native Finder-friendly DMG.
 ZIP="$OUT/Akron-Native-macos-arm64.zip"
 rm -f "$ZIP"
 /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
-
-# Produce a checksum alongside the exact ZIP distributed by CI.
 /usr/bin/shasum -a 256 "$ZIP" | /usr/bin/tee "$OUT/Akron-Native-macos-arm64.zip.sha256"
 
-printf 'Native macOS artifact: %s\n' "$ZIP"
-printf 'Native macOS artifact checksum: %s\n' "$OUT/Akron-Native-macos-arm64.zip.sha256"
+DMG="$OUT/Akron-Native-macos-arm64.dmg"
+DMG_STAGE="$OUT/.dmg-stage"
+rm -rf "$DMG_STAGE" "$DMG"
+mkdir -p "$DMG_STAGE"
+/usr/bin/ditto "$APP" "$DMG_STAGE/Akron.app"
+ln -s /Applications "$DMG_STAGE/Applications"
+
+# UDZO is a standard compressed read-only HFS+/APFS-compatible disk image format.
+/usr/bin/hdiutil create \
+  -volname "Akron" \
+  -srcfolder "$DMG_STAGE" \
+  -ov \
+  -format UDZO \
+  "$DMG"
+
+rm -rf "$DMG_STAGE"
+
+# Validate that the image can be mounted and contains exactly the expected app.
+MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen)"
+MOUNT_PATH="$(printf '%s\n' "$MOUNT_INFO" | awk -F'\t' '/\/Volumes\// {print $NF; exit}')"
+if [[ -z "$MOUNT_PATH" ]]; then
+  echo "DMG validation failed: could not mount $DMG" >&2
+  exit 1
+fi
+trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
+
+test -d "$MOUNT_PATH/Akron.app"
+test -d "$MOUNT_PATH/Applications"
+test -x "$MOUNT_PATH/Akron.app/Contents/MacOS/Akron"
+/usr/bin/codesign --verify --deep --strict --verbose=2 "$MOUNT_PATH/Akron.app"
+/usr/bin/ditto --rsrc "$MOUNT_PATH/Akron.app/Contents/Resources/Akron-Build.txt" /tmp/akron-dmg-marker.txt
+/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet
+trap - EXIT
+rm -f /tmp/akron-dmg-marker.txt
+
+/usr/bin/shasum -a 256 "$DMG" | /usr/bin/tee "$OUT/Akron-Native-macos-arm64.dmg.sha256"
+
+printf 'Native macOS ZIP: %s\n' "$ZIP"
+printf 'Native macOS DMG: %s\n' "$DMG"
+printf 'ZIP checksum: %s\n' "$OUT/Akron-Native-macos-arm64.zip.sha256"
+printf 'DMG checksum: %s\n' "$OUT/Akron-Native-macos-arm64.dmg.sha256"
