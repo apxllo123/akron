@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::manifest::{GameManifest, ProtectionSignals};
-use crate::pe::{analyze_pe, PeImport};
+use crate::pe::{PeImport, analyze_pe};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GameProfile {
@@ -322,15 +322,19 @@ mod tests {
         };
 
         assert!(profile_game(&manifest).is_err());
-        assert_eq!(GraphicsRequirements::default(), GameProfile {
-            executables: Vec::new(),
-            pe_binaries: Vec::new(),
-            graphics: GraphicsRequirements::default(),
-            windows_apis: Vec::new(),
-            runtimes: Vec::new(),
-            unresolved_imports: Vec::new(),
-            protections: Default::default(),
-        }.graphics);
+        assert_eq!(
+            GraphicsRequirements::default(),
+            GameProfile {
+                executables: Vec::new(),
+                pe_binaries: Vec::new(),
+                graphics: GraphicsRequirements::default(),
+                windows_apis: Vec::new(),
+                runtimes: Vec::new(),
+                unresolved_imports: Vec::new(),
+                protections: Default::default(),
+            }
+            .graphics
+        );
 
         std::fs::remove_file(exe).expect("remove fixture");
         std::fs::remove_dir(root).expect("remove fixture dir");
