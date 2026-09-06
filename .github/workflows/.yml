@@ -43,6 +43,36 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref || github.ref }}
+
+      - name: Verify checked-out source provenance
+        shell: bash
+        env:
+          BUILD_REF: ${{ inputs.ref || github.ref }}
+        run: |
+          set -euo pipefail
+          echo "== Build provenance =="
+          echo "Requested ref: $BUILD_REF"
+          checked_out_sha="$(git rev-parse HEAD)"
+          resolved_sha="$(git rev-parse "$BUILD_REF^{commit}")"
+          echo "Checked-out HEAD: $checked_out_sha"
+          echo "Resolved ref: $resolved_sha"
+          test "$checked_out_sha" = "$resolved_sha" || {
+            echo "FAIL: checkout does not match requested ref." >&2
+            exit 1
+          }
+          echo "Working tree status:"
+          git status --short
+          echo "== PE analyzer source at HEAD =="
+          git show HEAD:"Akron Analyzer/src/pe.rs" | grep -nE 'export\.ordinal|import\.ordinal' || true
+          if git show HEAD:"Akron Analyzer/src/pe.rs" | grep -q 'export\.ordinal'; then
+            echo "FAIL: checked-out PE analyzer source contains unsupported export.ordinal" >&2
+            exit 1
+          fi
+          if ! git show HEAD:"Akron Analyzer/src/pe.rs" | grep -q 'import\.ordinal'; then
+            echo "FAIL: checked-out PE analyzer source is missing import.ordinal handling" >&2
+            exit 1
+          fi
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Setup Node.js
