@@ -3,6 +3,15 @@ name: Release Akron
 on:
   push:
     branches: [main]
+    paths:
+      - 'Akron Analyzer/**'
+      - 'Akron Adapter/**'
+      - 'desktop/**'
+      - 'resources/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -72,7 +81,6 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const version = process.env.RELEASE_VERSION;
-          const buildNumber = process.env.BUILD_NUMBER;
 
           const packagePath = 'desktop/package.json';
           const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
@@ -81,18 +89,16 @@ jobs:
           NODE
 
           python3 - <<'PY'
+          import os
           import plistlib
           from pathlib import Path
-          import os
 
           path = Path('desktop/macos/Info.plist')
           with path.open('rb') as handle:
               plist = plistlib.load(handle)
 
-          version = os.environ['RELEASE_VERSION']
-          build_number = os.environ['BUILD_NUMBER']
-          plist['CFBundleShortVersionString'] = version
-          plist['CFBundleVersion'] = build_number
+          plist['CFBundleShortVersionString'] = os.environ['RELEASE_VERSION']
+          plist['CFBundleVersion'] = os.environ['BUILD_NUMBER']
 
           with path.open('wb') as handle:
               plistlib.dump(plist, handle, fmt=plistlib.FMT_XML, sort_keys=False)
@@ -126,7 +132,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add desktop/package.json desktop/macos/Info.plist
-          git commit -m "chore: bump release version to ${{ steps.version.outputs.tag }} [skip ci]"
+          git commit -m "chore: bump release version to ${{ steps.version.outputs.tag }}"
           git push origin main
 
       - name: Create release tag
