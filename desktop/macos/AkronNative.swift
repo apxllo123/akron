@@ -107,6 +107,9 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
             }
             analyzeGame(id: id, gamePath: gamePath)
 
+        case "buildAdaptationPlan":
+            buildAdaptationPlan(id: id, profile: args)
+
         default:
             respondError(id: id, message: "Unknown Akron method: \(method)")
         }
@@ -121,6 +124,7 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
         let workspace = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Akron/workspace", isDirectory: true)
         let analyzer = resources.appendingPathComponent("akron-runtime/akron-analyzer")
+        let adapter = resources.appendingPathComponent("akron-runtime/akron-adapter")
 
         let stages: [(String, () throws -> Bool)] = [
             ("Checking application environment", { true }),
@@ -130,6 +134,9 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
             }),
             ("Verifying Akron Analyzer", {
                 FileManager.default.isExecutableFile(atPath: analyzer.path)
+            }),
+            ("Verifying Akron Adapter", {
+                FileManager.default.isExecutableFile(atPath: adapter.path)
             }),
             ("Checking target platform", { true }),
             ("Finalizing local services", { true })
@@ -148,7 +155,8 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
 
             respond(id: id, result: [
                 "workspace": workspace.path,
-                "analyzer": analyzer.path
+                "analyzer": analyzer.path,
+                "adapter": adapter.path
             ])
         } catch {
             respondError(id: id, message: error.localizedDescription)
@@ -181,6 +189,62 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
                 guard process.terminationStatus == 0 else {
                     let message = String(data: errorOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
                         ?? "Analyzer exited with code \(process.terminationStatus)."
+                    DispatchQueue.main.async { self.respondError(id: id, message: message) }
+                    return
+                }
+
+                let json = try JSONSerialization.jsonObject(with: output, options: [])
+                DispatchQueue.main.async { self.respond(id: id, result: json) }
+            } catch {
+                DispatchQueue.main.async { self.respondError(id: id, message: error.localizedDescription) }
+            }
+        }
+    }
+
+    private func buildAdaptationPlan(id: String, profile: Any?) {
+        guard let profile,
+              JSONSerialization.isValidJSONObject(profile) else {
+            respondError(id: id, message: "A valid game profile is required to build an adaptation plan.")
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let resources = Bundle.main.resourceURL else {
+                DispatchQueue.main.async {
+                    self.respondError(id: id, message: "Application resources are missing.")
+                }
+                return
+            }
+
+            let adapter = resources.appendingPathComponent("akron-runtime/akron-adapter")
+            guard FileManager.default.isExecutableFile(atPath: adapter.path) else {
+                DispatchQueue.main.async {
+                    self.respondError(id: id, message: "Akron Adapter is missing or not executable: \(adapter.path)")
+                }
+                return
+            }
+
+            let process = Process()
+            let stdin = Pipe()
+            let stdout = Pipe()
+            let stderr = Pipe()
+            process.executableURL = adapter
+            process.standardInput = stdin
+            process.standardOutput = stdout
+            process.standardError = stderr
+
+            do {
+                let input = try JSONSerialization.data(withJSONObject: profile, options: [])
+                try process.run()
+                stdin.fileHandleForWriting.write(input)
+                stdin.fileHandleForWriting.closeFile()
+                process.waitUntilExit()
+
+                let output = stdout.fileHandleForReading.readDataToEndOfFile()
+                let errorOutput = stderr.fileHandleForReading.readDataToEndOfFile()
+                guard process.terminationStatus == 0 else {
+                    let message = String(data: errorOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        ?? "Adapter exited with code \(process.terminationStatus)."
                     DispatchQueue.main.async { self.respondError(id: id, message: message) }
                     return
                 }
@@ -269,6 +333,7 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
         },
         pickGameFolder: () => request('pickGameFolder'),
         analyzeGame: (gamePath) => request('analyzeGame', gamePath),
+        buildAdaptationPlan: (profile) => request('buildAdaptationPlan', profile),
       };
     })();
     """#
