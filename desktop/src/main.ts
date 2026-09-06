@@ -45,6 +45,16 @@ function analyzerBinaryPath(): string {
   return join(app.getAppPath(), '..', 'target', 'release', binaryName);
 }
 
+function adapterBinaryPath(): string {
+  const binaryName = process.platform === 'win32' ? 'akron-adapter.exe' : 'akron-adapter';
+  const packagedPath = join(process.resourcesPath, 'akron-runtime', binaryName);
+  if (existsSync(packagedPath)) {
+    return packagedPath;
+  }
+
+  return join(app.getAppPath(), '..', 'target', 'release', binaryName);
+}
+
 function showStartupError(title: string, detail: string): void {
   logStartup(`${title}: ${detail}`);
   if (app.isReady()) {
@@ -278,6 +288,48 @@ ipcMain.handle('analyzer:analyze', async (_event, gamePath: unknown) => {
         reject(new Error('Analyzer returned invalid JSON.'));
       }
     });
+  });
+});
+
+ipcMain.handle('adapter:plan', async (_event, profile: unknown) => {
+  if (!profile || typeof profile !== 'object') {
+    throw new Error('A game profile is required to build an adaptation plan.');
+  }
+
+  const binary = adapterBinaryPath();
+  if (!existsSync(binary)) {
+    throw new Error(`Akron Adapter binary was not found: ${binary}`);
+  }
+
+  return await new Promise<unknown>((resolve, reject) => {
+    const child = spawn(binary, [], {
+      cwd: app.getAppPath(),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => { stdout += chunk; });
+    child.stderr.on('data', (chunk: string) => { stderr += chunk; });
+    child.once('error', (error) => {
+      reject(new Error(`Failed to start Adapter: ${error.message}`));
+    });
+    child.once('close', (code, signal) => {
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || `Adapter exited with code ${code ?? 'unknown'}${signal ? ` (${signal})` : ''}.`));
+        return;
+      }
+      try {
+        resolve(JSON.parse(stdout));
+      } catch {
+        reject(new Error('Adapter returned invalid JSON.'));
+      }
+    });
+
+    child.stdin.end(JSON.stringify(profile));
   });
 });
 
