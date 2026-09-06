@@ -8,7 +8,9 @@ import { spawn } from 'node:child_process';
 
 const desktopRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const repoRoot = resolve(desktopRoot, '..');
-const source = join(repoRoot, 'resources', 'icon.jpeg');
+const pngSource = join(repoRoot, 'resources', 'icon.png');
+const jpegFallback = join(repoRoot, 'resources', 'icon.jpeg');
+const source = pngSource;
 const buildDir = join(desktopRoot, 'build');
 const iconPng = join(buildDir, 'icon.png');
 const iconIco = join(buildDir, 'icon.ico');
@@ -26,20 +28,27 @@ async function command(command, args) {
   });
 }
 
-await access(source, constants.F_OK);
+let actualSource = source;
+try {
+  await access(actualSource, constants.F_OK);
+} catch {
+  actualSource = jpegFallback;
+  await access(actualSource, constants.F_OK);
+}
+
 await mkdir(buildDir, { recursive: true });
 await rm(iconSet, { recursive: true, force: true });
 await mkdir(iconSet, { recursive: true });
 
-// Keep the original artwork untouched. Produce a square PNG at a high enough
-// resolution for both Windows and macOS packaging.
-await sharp(source).resize(1024, 1024, { fit: 'cover' }).png().toFile(iconPng);
+// Keep the repository artwork untouched. Generate the platform assets from
+// resources/icon.png when available, with the original JPEG as a safe fallback.
+await sharp(actualSource).resize(1024, 1024, { fit: 'cover' }).png().toFile(iconPng);
 
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
 const icoPngs = [];
 for (const size of icoSizes) {
   const output = join(buildDir, `icon-${size}.png`);
-  await sharp(source).resize(size, size, { fit: 'cover' }).png().toFile(output);
+  await sharp(actualSource).resize(size, size, { fit: 'cover' }).png().toFile(output);
   icoPngs.push(output);
 }
 await writeFile(iconIco, await pngToIco(icoPngs));
@@ -55,7 +64,7 @@ if (process.platform === 'darwin') {
   await access(iconIcns, constants.F_OK);
 }
 
-console.log(`Prepared Akron icons from ${source}`);
+console.log(`Prepared Akron icons from ${actualSource}`);
 console.log(`PNG: ${iconPng}`);
 console.log(`ICO: ${iconIco}`);
 if (process.platform === 'darwin') console.log(`ICNS: ${iconIcns}`);
