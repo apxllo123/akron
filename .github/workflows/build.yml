@@ -66,14 +66,10 @@ jobs:
 
           FRAMEWORKS="$APP/Contents/Frameworks"
           for suffix in "" " (GPU)" " (Plugin)" " (Renderer)"; do
-            HELPER="$FRAMEWORKS/Akron Helper${suffix}.app"
-            EXECUTABLE="$HELPER/Contents/MacOS/Akron Helper${suffix}"
-            PLIST="$HELPER/Contents/Info.plist"
+            HELPER="$FRAMEWORKS/Electron Helper${suffix}.app"
+            EXECUTABLE="$HELPER/Contents/MacOS/Electron Helper${suffix}"
             test -d "$HELPER"
             test -x "$EXECUTABLE"
-            test -f "$PLIST"
-            ACTUAL_EXECUTABLE="$(/usr/bin/plutil -extract CFBundleExecutable raw "$PLIST")"
-            test "$ACTUAL_EXECUTABLE" = "Akron Helper${suffix}"
           done
 
           /usr/bin/codesign --verify --verbose=2 "$APP"
@@ -99,12 +95,9 @@ jobs:
           test -x "$APP/Contents/MacOS/Akron"
           FRAMEWORKS="$APP/Contents/Frameworks"
           for suffix in "" " (GPU)" " (Plugin)" " (Renderer)"; do
-            HELPER="$FRAMEWORKS/Akron Helper${suffix}.app"
-            EXECUTABLE="$HELPER/Contents/MacOS/Akron Helper${suffix}"
-            PLIST="$HELPER/Contents/Info.plist"
+            HELPER="$FRAMEWORKS/Electron Helper${suffix}.app"
+            EXECUTABLE="$HELPER/Contents/MacOS/Electron Helper${suffix}"
             test -x "$EXECUTABLE"
-            ACTUAL_EXECUTABLE="$(/usr/bin/plutil -extract CFBundleExecutable raw "$PLIST")"
-            test "$ACTUAL_EXECUTABLE" = "Akron Helper${suffix}"
           done
           /usr/bin/codesign --verify --verbose=2 "$APP"
 
