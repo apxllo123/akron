@@ -31,6 +31,7 @@ pub struct PeBinaryProfile {
     pub architecture: String,
     pub kind: String,
     pub import_count: usize,
+    pub exports: Vec<crate::pe::PeExport>,
     pub libraries: Vec<String>,
 }
 
@@ -123,6 +124,7 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
             architecture,
             kind,
             import_count: analysis.imports.len(),
+            exports: analysis.exports.clone(),
             libraries,
         });
 
