@@ -21,10 +21,8 @@ swiftc \
   -o "$MACOS/Akron"
 
 chmod 755 "$MACOS/Akron"
-
 cp "$ROOT/macos/Info.plist" "$CONTENTS/Info.plist"
 cp -R "$ROOT/dist-renderer/." "$RESOURCES/ui/"
-
 node "$ROOT/scripts/stage-runtime.mjs"
 
 ANALYZER="$ROOT/resources/akron-analyzer"
@@ -41,8 +39,6 @@ cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
 cp "$ADAPTER" "$RESOURCES/akron-runtime/akron-adapter"
 chmod 755 "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 
-# Use the canonical rounded PNG when present. Keep JPEG as a compatibility
-# fallback so older checkouts remain buildable until resources/icon.png lands.
 ICON_SOURCE="$ROOT/../resources/icon.png"
 if [[ ! -f "$ICON_SOURCE" ]]; then
   ICON_SOURCE="$ROOT/../resources/icon.jpeg"
@@ -59,9 +55,9 @@ mkdir -p "$ICONSET"
 /usr/bin/sips -s format png "$ICON_SOURCE" --out "$ICON_PNG" >/dev/null
 
 for size in 16 32 128 256 512; do
-  /usr/bin/sips -z "$size" "$size" "$ICON_PNG" --out "$ICONSET/${size}x${size}.png" >/dev/null
+  /usr/bin/sips -z "$size" "$size" "$ICON_PNG" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
   doubled=$((size * 2))
-  /usr/bin/sips -z "$doubled" "$doubled" "$ICON_PNG" --out "$ICONSET/${size}x${size}@2x.png" >/dev/null
+  /usr/bin/sips -z "$doubled" "$doubled" "$ICON_PNG" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
 
 /usr/bin/iconutil -c icns "$ICONSET" -o "$ICON_ICNS"
