@@ -74,8 +74,13 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
     for exe in &manifest.executables {
         merge_protections(&mut profile.protections, &exe.protection);
         let absolute = manifest.root.join(&exe.path);
-        scan_binary(&absolute, &mut profile.graphics, &mut api_evidence, &mut runtime_evidence)
-            .with_context(|| format!("failed to profile {}", absolute.display()))?;
+        scan_binary(
+            &absolute,
+            &mut profile.graphics,
+            &mut api_evidence,
+            &mut runtime_evidence,
+        )
+        .with_context(|| format!("failed to profile {}", absolute.display()))?;
     }
 
     profile.windows_apis = api_evidence
@@ -261,8 +266,14 @@ mod tests {
                 ..GraphicsRequirements::default()
             }
         );
-        assert!(profile.windows_apis.iter().any(|v| v.family == "windowing/input"));
-        assert!(profile.windows_apis.iter().any(|v| v.family == "networking"));
+        assert!(profile
+            .windows_apis
+            .iter()
+            .any(|v| v.family == "windowing/input"));
+        assert!(profile
+            .windows_apis
+            .iter()
+            .any(|v| v.family == "networking"));
         assert!(profile
             .runtimes
             .iter()
