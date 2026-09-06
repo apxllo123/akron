@@ -1,20 +1,15 @@
 <div align="center">
 
-[<img src="https://raw.githubusercontent.com/apxllo123/akron/main/resources/icon.png?v=13" width="144" alt="Akron icon"/>](https://github.com/apxllo123/akron)
+[<img src="https://raw.githubusercontent.com/apxllo123/akron/main/resources/icon.png?v=12" width="144" alt="Akron icon"/>](https://github.com/apxllo123/akron)
 
-  <h1 align="center">Akron</h1>
+# Akron
 
-  <p align="center">
-    <strong>Universal Game Analysis & Adaptation</strong>
-  </p>
+<strong>Universal Game Analysis & Adaptation</strong>
 
-  <p align="center">
-    Akron analyzes a game's files, executables, dependencies, runtime requirements, graphics stack, and protection signals before an adaptation plan is generated.
-  </p>
+<p>Akron analyzes a game's files, executables, dependencies, runtime requirements, graphics stack, and protection signals before an adaptation plan is generated.</p>
 
 [![Build Akron](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/build.yml?label=Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/akron/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/apxllo123/akron?display_name=tag&style=for-the-badge&color=7c5cff)](https://github.com/apxllo123/akron/releases)
-[![Security](https://img.shields.io/badge/Security-responsible--disclosure-2ea44f?style=for-the-badge&color=2ea44f)](SECURITY.md)
 [![License](https://img.shields.io/github/license/apxllo123/akron?style=for-the-badge&color=2ea043)](LICENSE)
 
 </div>
@@ -25,7 +20,9 @@
 
 Akron is an experimental game analysis and adaptation platform built around a simple rule: **understand the game first, then decide what can be adapted**.
 
-The current repository contains the foundation of that pipeline: recursive analysis, PE inspection, dependency modeling, protection detection, capability profiling, adaptation-plan generation, and a desktop shell that connects the pieces together.
+Instead of immediately attempting to transform a game, Akron builds a structured model of the game directory and its Windows binaries. That model can then be consumed by the Adapter to produce an explicit per-game plan, including dependencies that still need to be resolved and capabilities that are not yet implemented.
+
+The repository currently contains the foundation of that pipeline: recursive analysis, PE inspection, dependency modeling, protection detection, capability profiling, adaptation-plan generation, and a desktop shell that connects the pieces together.
 
 ## ✨ What Akron Does Today
 
@@ -37,55 +34,64 @@ The Rust Analyzer builds a machine-readable manifest without modifying the sourc
 - File metadata and SHA-256 hashing
 - Executable candidate detection
 - PE format and architecture detection
-- PE headers, sections, and import inspection
+- PE headers and section inspection
+- PE import inspection
 - Binary dependency relationships
-- Protection-signal detection
+- Protection-signal detection, including packer/protector and anti-cheat indicators
 - Per-game capability profiling
 
 ### 🧩 Adapter
 
-The Rust Adapter consumes the Analyzer's profile and produces a structured adaptation plan covering:
+The Rust Adapter consumes the Analyzer's profile and produces a structured adaptation plan.
 
-- Graphics requirements
+Plans can describe:
+
+- Graphics requirements and backend needs
 - Windows API families
 - Runtime requirements
 - Dependency-resolution work
 - Unresolved imports
 - Protection information
-- Ready / blocked adaptation steps
+- Capabilities that are currently blocked because their executor is not implemented yet
 
-Akron intentionally reports unfinished conversion work as **blocked** instead of claiming support that does not exist yet.
+Akron intentionally reports unfinished conversion work as **blocked** instead of presenting it as supported functionality.
 
 ### 🖥️ Desktop
 
-The desktop application provides the user-facing analysis pipeline with:
+The desktop application provides the user-facing layer for the analysis pipeline.
+
+Current desktop functionality includes:
 
 - Native game-folder selection
-- Analyzer execution
-- Adapter-plan execution
+- Analyzer execution from the UI
+- Adapter-plan execution from the UI
 - Controlled Electron preload communication
-- macOS ARM64 and Windows packaging
+- Native packaging for macOS ARM64 and Windows
 
 ## 🏗️ Architecture
 
 ```text
-                         Akron Desktop
-                    Electron + TypeScript
-                              │
-                       Controlled Bridge
-                              │
-                ┌─────────────┴─────────────┐
-                │                           │
-         Akron Analyzer              Akron Adapter
-              Rust                         Rust
-                │                           │
-                └─────────────┬─────────────┘
-                              │
-                         Game files
-                              │
-                         GameProfile
-                              │
-                       Adaptation Plan
+                                Akron Desktop
+                           Electron + TypeScript
+                                     │
+                              Controlled Bridge
+                                     │
+                           ┌─────────┴─────────┐
+                           │                   │
+                    Akron Analyzer       Akron Adapter
+                         Rust                  Rust
+                           │                   │
+                           └─────────┬─────────┘
+                                     │
+                              Game directory
+                                     │
+                        ┌────────────┴────────────┐
+                        │                         │
+                     Manifest                GameProfile
+                        │                         │
+                        └────────────┬────────────┘
+                                     │
+                              Adaptation Plan
 ```
 
 ### Analyzer → Profile → Plan
@@ -104,31 +110,45 @@ Adaptation planning
 Explicit Ready / Blocked steps
 ```
 
+This separation keeps evidence gathering independent from conversion decisions and gives future conversion executors a stable input model.
+
 ## 🎯 Per-Game Capability Profiles
 
-Akron makes game-specific requirements visible before adaptation begins.
+Akron is designed to make game-specific requirements visible before adaptation begins.
 
-Profiles can capture Direct3D requirements, DXGI dependencies, Windows API families, Visual C++ runtime requirements, binary dependencies, unresolved imports, and protection signals discovered during analysis.
+A capability profile can capture information such as:
+
+- Direct3D 9 / 10 / 11 / 12 requirements discovered from PE imports
+- DXGI requirements
+- Windows API families such as windowing/input and networking
+- Microsoft Visual C++ runtime requirements
+- Binary-to-binary dependencies
+- Unresolved imports that still require implementation or resolution
+- Protection and anti-cheat signals
+
+The resulting profile becomes the source of truth for adaptation planning rather than relying on assumptions about what a game needs.
 
 ## 🛡️ Protection & Safety Signals
 
-Protection and anti-cheat detections are diagnostic signals. Akron does not treat detection as permission to bypass or remove a protection mechanism. A detected technology may instead cause an adaptation step to remain blocked until a legitimate implementation exists.
+The Analyzer can identify evidence associated with packers/protectors and anti-cheat technologies.
+
+These signals are **diagnostic**. Akron does not treat detection as automatic permission to bypass or remove a protection mechanism, and a detected technology can cause an adaptation step to remain blocked until a legitimate implementation exists.
 
 ## 🎨 Branding & Assets
 
-The canonical application artwork is:
+The canonical application artwork lives at:
 
 ```text
 resources/icon.png
 ```
 
-The original source artwork remains available at:
+The original source artwork is retained as:
 
 ```text
 resources/icon.jpeg
 ```
 
-The canonical PNG is used as the source artwork for packaged application icons.
+The PNG is the packaging source for generated macOS and Windows icon assets. The repository README references the canonical PNG directly so the project branding and packaged application icon use the same source artwork.
 
 ## 🚦 Project Status
 
@@ -136,7 +156,8 @@ The canonical PNG is used as the source artwork for packaged application icons.
 
 - [x] Recursive game analysis
 - [x] File inventory and SHA-256 hashing
-- [x] Executable and PE detection
+- [x] Executable detection
+- [x] PE architecture detection
 - [x] PE headers, sections, and imports
 - [x] Binary dependency graph generation
 - [x] Protection-signal detection
@@ -150,7 +171,7 @@ The canonical PNG is used as the source artwork for packaged application icons.
 - [x] Analyzer/Adapter execution from the desktop app
 - [x] macOS ARM64 packaging pipeline
 - [x] Windows packaging pipeline
-- [x] Rust and Electron CI
+- [x] Rust CI and Electron CI
 - [x] Automated release workflow
 
 ### In Progress / Planned
@@ -165,6 +186,8 @@ The canonical PNG is used as the source artwork for packaged application icons.
 - [ ] Broader graphics backend support
 - [ ] Production signing and notarization
 - [ ] Full online/API service layer
+
+These items are intentionally separated from the implemented feature set so the README does not overstate the current capabilities of the project.
 
 ## 🧪 Development & Verification
 
@@ -184,7 +207,7 @@ cargo test --workspace --all-targets
 cargo build --workspace --release
 ```
 
-### Desktop
+### Electron checks
 
 ```bash
 cd desktop
@@ -200,11 +223,15 @@ npm run build
 cargo run -p akron-analyzer -- /path/to/game
 ```
 
+The command outputs the generated game manifest as JSON.
+
 ### Run the Adapter
 
 ```bash
 printf '%s\n' '<GameProfile JSON>' | cargo run -p akron-adapter
 ```
+
+The Adapter reads a serialized `GameProfile` from standard input and writes the generated adaptation plan as JSON.
 
 ### Run the Desktop App
 
@@ -216,41 +243,58 @@ npm start
 
 ## 📦 Releases
 
-Akron uses the public release sequence:
+Akron releases are versioned using the public sequence:
 
 ```text
 v0.1 → v0.2 → … → v0.9 → v1.0 → v1.1 → …
 ```
 
-Application versions remain valid semantic versions internally, while public release tags use the shorter display form.
+Application versions remain valid semantic versions internally (`0.1.0`, `1.0.0`, etc.), while the public release tags use the shorter display form.
 
-Release automation updates application versions together, creates the matching tag, publishes the GitHub Release, builds the tagged application, and attaches the macOS ARM64 ZIP, DMG, and checksums.
+The release workflow is designed to:
 
-Documentation-only changes are intentionally excluded from expensive application build and release automation.
+1. Detect the next release number.
+2. Update the desktop package and macOS bundle versions together.
+3. Create the matching Git tag.
+4. Publish the GitHub Release.
+5. Build the tagged application.
+6. Attach the macOS ARM64 ZIP, DMG, and checksums to the release.
+
+Documentation-only changes are intentionally excluded from expensive application build/release automation.
 
 ## ⚙️ CI & Automation
 
+Akron separates verification from packaging while keeping both automated.
+
 ### Build Akron
 
-`.github/workflows/build.yml` handles application builds and packaging.
+`.github/workflows/build.yml` handles application builds and packaging for the supported targets.
+
+The macOS build validates the application bundle, bundle metadata, native runtime presence, executable architecture, signing state, and generated icon assets before publishing artifacts.
 
 ### Rust CI
 
-`.github/workflows/rust.yml` checks formatting, compilation, Clippy, tests, and release builds.
+`.github/workflows/rust.yml` checks formatting, workspace compilation, Clippy with warnings as errors, tests, and release builds.
 
 ### Release Automation
 
 `.github/workflows/release.yml` handles release-number progression and coordinates tagged builds and release assets.
 
-Workflows are path-aware so documentation-only changes do not repeatedly consume build time.
+The workflows are path-aware so README/docs-only edits do not repeatedly consume build time.
 
 ## 📁 Repository Layout
 
 ```text
 Akron/
 ├── Akron Analyzer/          # Rust game analysis engine
+│   └── src/
 ├── Akron Adapter/           # Rust adaptation planning engine
+│   └── src/
 ├── desktop/                 # Electron + TypeScript application
+│   ├── src/
+│   ├── renderer/
+│   ├── scripts/
+│   └── macos/
 ├── resources/               # Project artwork and shared assets
 │   ├── icon.png
 │   └── icon.jpeg
@@ -261,7 +305,7 @@ Akron/
 
 ## 🧭 Engineering Approach
 
-Akron follows a verification-first loop:
+Akron follows a verification-first development loop:
 
 ```text
 Inspect
@@ -281,32 +325,38 @@ Inspect the artifact
 Fix and refine
 ```
 
-Core principles:
+The core principles are:
 
-- **Analysis before adaptation**
-- **Explicit capabilities**
-- **Root-cause fixes**
-- **Reproducible builds**
-- **Honest status reporting**
+- **Analysis before adaptation** — establish evidence before making conversion decisions.
+- **Explicit capabilities** — represent what is known, unknown, ready, or blocked.
+- **Root-cause fixes** — correct the implementation instead of suppressing diagnostics.
+- **Reproducible builds** — packaging and versioning should be deterministic and automatable.
+- **Honest status reporting** — unfinished conversion functionality stays clearly marked as unfinished.
 
 ## 🗺️ Roadmap
 
 ### Phase 1 — Understand
-Create complete and trustworthy game manifests.
+
+Create a complete, reliable description of the game's files, binaries, dependencies, and runtime assumptions.
 
 ### Phase 2 — Model
-Turn evidence into dependency graphs and capability profiles.
+
+Turn analysis evidence into capability profiles and adaptation requirements.
 
 ### Phase 3 — Adapt
-Resolve target-platform requirements and generate concrete adaptation plans.
+
+Implement the platform-specific executors required by the generated plan.
 
 ### Phase 4 — Convert
-Execute those plans through verified native conversion backends.
+
+Produce target-platform application packages while preserving game content and behavior wherever technically possible.
 
 ### Phase 5 — Validate
-Launch and exercise converted applications automatically and collect diagnostics.
+
+Automatically launch and exercise converted titles, capture diagnostics, and compare expected versus observed behavior.
 
 ### Phase 6 — Improve
+
 Use compatibility results to make future analyses and adaptations increasingly automatic.
 
 ## 🖥️ Platform Focus
@@ -316,6 +366,8 @@ macOS / Apple Silicon   → primary
 Windows                 → secondary
 Linux                   → deferred
 ```
+
+Linux is deferred at the product level for now; the core architecture remains structured so additional targets can be introduced later without redesigning the analysis model.
 
 ## 📄 License
 
