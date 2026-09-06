@@ -1,210 +1,172 @@
-# 🔐 Akron Security
-
 <div align="center">
 
-**Security, vulnerability reporting, and responsible disclosure**
+# 🔐 Akron Security
 
-[Report a Vulnerability](#-reporting-a-vulnerability) · [Security Model](#-security-model) · [Supported Versions](#-supported-versions) · [Research Guidelines](#-responsible-security-research)
+**Security policy · Responsible disclosure · Secure development**
+
+[![Security Policy](https://img.shields.io/badge/security-responsible%20disclosure-2ea44f?style=flat-square)](SECURITY.md)
+[![License](https://img.shields.io/github/license/apxllo123/akron?style=flat-square)](LICENSE)
+
+Akron treats security as part of the product, not an afterthought. This policy explains how security issues should be reported, which releases are supported, and which parts of the project receive additional scrutiny.
 
 </div>
 
 ---
 
-Akron analyzes external game files, inspects native binaries, coordinates local processes, packages application artifacts, and is intended to perform increasingly sophisticated adaptation work. Those responsibilities create meaningful security boundaries around **untrusted input, native execution, IPC, filesystem access, dependencies, and build automation**.
+## 🚨 Reporting a Vulnerability
 
-Security is therefore treated as part of the engineering design, not as a final checklist.
+> **Please do not open a public GitHub issue for a suspected security vulnerability.**
 
-> **Important:** Akron is still under active development. Features described in the roadmap may not yet be implemented, and security guarantees should not be inferred for functionality that does not currently exist.
+Use GitHub's **private vulnerability reporting** for this repository when available. Private reporting gives the maintainers a place to investigate an issue without immediately exposing technical details to the public.
+
+A strong report should include:
+
+| Information | What to provide |
+| --- | --- |
+| **Impact** | What an attacker could make the application do, access, or expose |
+| **Affected area** | Component, source file, workflow, release, package, or trust boundary |
+| **Reproduction** | Clear reproduction steps or a minimal proof of concept when appropriate |
+| **Affected version** | Release, commit, or build identifier |
+| **Environment** | Operating system, architecture, configuration, and relevant dependencies |
+| **Evidence** | Logs, traces, screenshots, or other useful evidence with secrets removed |
+
+### Never include secrets
+
+Do **not** include passwords, API keys, access tokens, private keys, signing credentials, cookies, recovery codes, or other authentication material in a report.
+
+If credentials were accidentally exposed, revoke or rotate them immediately and report the incident without reproducing the secret in the report.
+
+---
 
 ## 🛡️ Supported Versions
 
-Akron is currently pre-1.0. Security work is prioritized for the current `main` branch and the latest published release.
+Akron is under active development and is currently pre-1.0. Security fixes are prioritized for the latest code on `main` and the newest published release.
 
-| Version | Support |
+| Version | Security support |
 | --- | --- |
-| Latest `main` | ✅ Active development |
-| Latest published release | ✅ Security fixes prioritized |
-| Older releases | ⚠️ Best effort only |
+| **Latest `main`** | ✅ Active |
+| **Latest release** | ✅ Active where practical |
+| Older releases | ⚠️ Not guaranteed |
 
-Because the project is evolving rapidly, users should upgrade to the newest release before investigating an issue that may already have been fixed.
+Because Akron is evolving quickly, users should upgrade to the latest available build before investigating or reporting an issue that may already be fixed.
 
-## 🚨 Reporting a Vulnerability
+---
 
-**Do not open a public GitHub issue for a security vulnerability.** Public issues can expose exploit details before a fix is available.
+## 🔎 Security-Sensitive Areas
 
-Use GitHub's **private vulnerability reporting** feature for this repository when available. That provides a safer channel for submitting sensitive security information.
+Akron works with game directories, executables, libraries, archives, native processes, and automated build infrastructure. These areas are considered especially security-sensitive.
 
-### A strong report includes
+### Untrusted game content
 
-| Field | What to provide |
-| --- | --- |
-| **Impact** | What could an attacker make Akron do, access, modify, or disclose? |
-| **Location** | Component, file, workflow, release, endpoint, or trust boundary involved. |
-| **Reproduction** | Clear steps, a minimal proof of concept, or a small test case when safe. |
-| **Affected version** | Release, commit SHA, or build identifier. |
-| **Environment** | Operating system, architecture, configuration, and relevant permissions. |
-| **Evidence** | Logs, traces, screenshots, or other evidence with secrets removed. |
+Selected game directories must be treated as **untrusted input**. Executables, DLLs, installers, archives, configuration files, and embedded resources must not be assumed to be safe merely because they came from a game installation.
 
-### 🔑 Never include secrets
+Analysis should avoid executing untrusted content just because it was discovered. Source data should remain unchanged unless an explicit adaptation step creates a separate target artifact.
 
-Never submit passwords, API keys, access tokens, private keys, signing credentials, recovery codes, cookies, session material, or other authentication secrets.
+### Native process boundaries
 
-If a credential is accidentally exposed, **revoke or rotate it first**, then describe the exposure without reproducing the credential itself.
+The desktop application, Electron renderer, preload bridge, Rust Analyzer, Rust Adapter, and future native conversion components cross different trust boundaries.
 
-## 🔎 What Happens After a Report
+Inputs crossing those boundaries should be validated, process arguments should avoid unnecessary shell interpretation, and privileged operations should remain narrowly scoped.
 
-Reports are reviewed as soon as practical. Depending on severity, the response may include a code change, mitigation, dependency update, workflow hardening, configuration change, documentation update, or security release.
+### Binary analysis
 
-During investigation, security details should remain private. Public disclosure should happen only after reasonable remediation and coordination with affected parties.
+PE parsing, import inspection, dependency discovery, protection-signal detection, and future binary transformation features must tolerate malformed or adversarial files.
 
-When appropriate, a security advisory or release note may summarize the issue without publishing unnecessary exploit details. Researchers may be credited with their permission.
+Potential security issues include:
 
-## 🧭 Security Model
-
-Akron's security model is centered on keeping **untrusted game content separate from trusted application logic** and keeping each process boundary explicit.
-
-```text
-                 Untrusted game content
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │     Analyzer    │
-                 │ parse / inspect │
-                 └────────┬────────┘
-                          │ verified data
-                          ▼
-                 ┌─────────────────┐
-                 │     Adapter     │
-                 │ plan / transform│
-                 └────────┬────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │     Desktop     │
-                 │ UI / IPC / host │
-                 └─────────────────┘
-```
-
-The boundaries above are intended to make it possible to reason about trust, validation, and privilege separately rather than allowing arbitrary game data to flow directly into privileged operations.
-
-## 🔒 Security-Sensitive Areas
-
-### Untrusted Game Files
-
-Game directories, executables, DLLs, archives, installers, configuration files, embedded resources, and downloaded content must be treated as **untrusted input**.
-
-Analysis should not execute or modify content merely because it is present in a selected game directory. Where adaptation requires changes, the preferred design is to produce a separate target artifact or working copy rather than silently altering the source.
-
-### Native Execution
-
-The Analyzer and Adapter are native Rust components and may eventually coordinate additional native tooling. Process launches must use explicit executable paths and validated arguments; shell interpretation should not be relied upon for untrusted values.
-
-Any feature that crosses from parsing into execution requires additional scrutiny for command injection, path traversal, privilege escalation, and unexpected child-process behavior.
-
-### Electron and IPC Boundaries
-
-The desktop application contains renderer, preload, main-process, and native-process boundaries. Data crossing those boundaries should be validated and minimized.
-
-The renderer should not receive unnecessary native capabilities, and process-launch APIs should not accept arbitrary shell fragments or unchecked filesystem paths.
-
-### Binary and PE Analysis
-
-PE parsing, import inspection, section handling, dependency discovery, and protection-signal analysis must remain resilient to malformed or adversarial binaries.
-
-Security-relevant failure modes include:
-
-- memory-safety bugs;
-- parser crashes and denial of service;
-- integer or size overflows;
 - path traversal;
-- uncontrolled resource consumption;
-- accidental execution of analyzed content;
-- incorrect trust decisions based on malformed metadata.
+- arbitrary process execution;
+- unsafe memory behavior;
+- parser crashes or denial of service;
+- resource-exhaustion conditions;
+- confused-deputy behavior;
+- unintended modification of source game data.
 
-### Packaging and Release Automation
+### Packaging and release automation
 
-Build and release workflows can create downloadable application artifacts, so they are treated as part of the security boundary.
+GitHub Actions can create distributable application artifacts, so workflow changes are security-sensitive. Particular care should be taken with:
 
-Particular attention should be given to:
-
-- GitHub Actions permissions;
+- workflow and repository permissions;
 - untrusted pull-request input;
 - shell command construction;
 - artifact provenance and integrity;
-- version and tag automation;
 - signing credentials and secrets;
-- accidental publication of internal files.
+- automated versioning and release tags.
 
-Secrets must never be logged, committed, embedded in artifacts, or copied into generated release notes.
+Secrets must never be written to logs or embedded into published artifacts.
 
 ### Dependencies
 
-Third-party Rust and Node.js packages are part of Akron's attack surface. Security advisories affecting code used by the Analyzer, Adapter, desktop application, packaging pipeline, or release automation should be evaluated promptly.
+Rust and Node.js dependencies are part of Akron's attack surface. Security advisories affecting dependencies used by the Analyzer, Adapter, desktop application, packaging system, or release pipeline should be evaluated promptly.
 
-Dependency changes should be verified with the appropriate compiler, test suite, linter, and build pipeline rather than being accepted solely because the package manager resolves them successfully.
+---
 
-## ✅ Secure Development Expectations
+## 🔧 Secure Development
 
-Security-sensitive changes should normally include the verification appropriate to their risk:
+Akron follows a verification-first engineering process. Security-sensitive changes should receive the checks appropriate to their risk, which may include:
 
-- formatting, compilation, and static analysis;
-- unit or integration tests;
-- malformed-input and boundary-condition coverage;
-- artifact and packaging validation;
-- review of IPC, process, filesystem, and permission boundaries.
+- formatter, compiler, and linter checks;
+- unit and integration tests;
+- malformed-input and boundary-condition tests;
+- packaging and artifact verification;
+- dependency review;
+- process-boundary and permission review.
 
-**Do not suppress a security check simply to make CI pass.** Fix the underlying problem or document a deliberate, reviewed exception.
+> **Do not disable a security check simply to make CI pass.** Fix the underlying issue or document a deliberate, reviewed exception.
 
-## 📦 Release Security
+For changes involving GitHub Actions, native process execution, file-system access, binary parsing, or release packaging, review both the normal code path and failure paths.
 
-Published artifacts should be traceable to a specific source revision and release tag.
+---
 
-The release pipeline should preserve the relationship between:
+## 📦 Scope
 
-```text
-source commit
-    ↓
-version / tag
-    ↓
-verified build
-    ↓
-packaged artifact
-    ↓
-GitHub Release
-```
-
-Changes to release automation, artifact upload behavior, permissions, or signing should be considered security-sensitive changes even when the application source itself is unchanged.
-
-## 🧪 Responsible Security Research
-
-Security research against Akron should be performed in a controlled environment and only against systems, repositories, accounts, or services for which you have authorization.
-
-Please avoid unnecessary access to other users' information, disruption of shared services, or publication of working exploit details before coordinated remediation.
-
-Research involving malformed binaries, hostile archives, process execution, or packaging should use isolated test data and disposable environments whenever practical.
-
-## 🎯 Scope
-
-This policy covers security issues introduced by or materially enabled by:
+This policy covers:
 
 - Akron source code and configuration;
-- the Electron desktop application;
-- Rust Analyzer and Adapter components;
 - GitHub Actions workflows and release automation;
 - published Akron application artifacts;
-- repository-controlled dependencies and build tooling.
+- vulnerabilities introduced by Akron's own code or build configuration.
 
-Issues entirely within a third-party game, operating system, DRM system, upstream library, or external service should also be reported to the responsible maintainer where appropriate.
+Issues entirely contained within a third-party game, operating system, DRM system, library, service, or other external component should normally also be reported to the appropriate upstream maintainer.
 
-## 🙏 Recognition
+---
 
-Akron appreciates responsible security research and coordinated disclosure. With the researcher's permission, confirmed security fixes may acknowledge contributors in release notes or project documentation.
+## 🧪 Safe Security Research
+
+Security research should be performed in a controlled environment and should avoid unnecessary access to other users' data or systems.
+
+Please do not intentionally disrupt shared services, expose private information, or publish working exploit details before coordinated remediation. Do not access systems outside the scope of Akron without authorization.
+
+---
+
+## 📬 What Happens After a Report?
+
+Reports are reviewed as soon as practical. Depending on severity and scope, a valid report may result in a code fix, mitigation, dependency update, workflow correction, documentation change, or security release.
+
+During investigation and remediation, security issues should remain private. After a fix is available, Akron may publish an advisory or release note when appropriate.
+
+With the reporter's permission, responsible researchers may be credited for confirmed security fixes.
+
+---
+
+## ✅ Security Checklist
+
+Before shipping a security-sensitive change, Akron aims to verify:
+
+**Input** → untrusted data is validated  
+**Execution** → unexpected code is not executed  
+**Paths** → file operations stay within intended boundaries  
+**Processes** → IPC and child-process arguments are controlled  
+**Secrets** → credentials never enter logs or artifacts  
+**Dependencies** → known security advisories are reviewed  
+**Artifacts** → releases contain only intended files  
+**CI** → permissions are no broader than necessary
 
 ---
 
 <div align="center">
 
-**Security is part of Akron's architecture.**
+**Responsible disclosure helps keep Akron safe for everyone.**
 
 *Last reviewed: September 2026*
 
