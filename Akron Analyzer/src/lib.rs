@@ -1,4 +1,5 @@
 pub mod manifest;
+pub mod pe;
 pub mod profile;
 pub mod scanner;
 

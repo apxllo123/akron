@@ -71,10 +71,11 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
         .sections
         .iter()
         .map(|section| {
-            let name = section
-                .real_name
-                .clone()
-                .unwrap_or_else(|| String::from_utf8_lossy(&section.name).trim_end_matches('\0').to_owned());
+            let name = section.real_name.clone().unwrap_or_else(|| {
+                String::from_utf8_lossy(&section.name)
+                    .trim_end_matches('\0')
+                    .to_owned()
+            });
             PeSection {
                 name,
                 virtual_size: section.virtual_size,
@@ -85,7 +86,7 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
             }
         })
         .collect::<Vec<_>>();
-    sections.sort_by(|a, b| a.virtual_address.cmp(&b.virtual_address));
+    sections.sort_by_key(|section| section.virtual_address);
 
     Ok(PeBinaryAnalysis {
         is_64: pe.is_64,
