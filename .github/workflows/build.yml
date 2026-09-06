@@ -69,6 +69,52 @@ jobs:
           echo "Gatekeeper assessment is informational for this non-notarized development build:"
           /usr/sbin/spctl --assess --type execute --verbose=4 "$APP" || true
 
+      - name: Smoke test packaged macOS app
+        shell: bash
+        run: |
+          set -u
+          APP="$(find desktop/dist -type d -name '*.app' -print -quit)"
+          LOG="$RUNNER_TEMP/Akron-launch.log"
+          REPORT_DIR="$RUNNER_TEMP/Akron-crash-reports"
+          mkdir -p "$REPORT_DIR"
+
+          echo "Launching packaged app directly: $APP"
+          "$APP/Contents/MacOS/Akron" >"$LOG" 2>&1 &
+          APP_PID=$!
+
+          sleep 8
+
+          if kill -0 "$APP_PID" 2>/dev/null; then
+            echo "Akron remained running after 8 seconds."
+            kill "$APP_PID" 2>/dev/null || true
+            wait "$APP_PID" 2>/dev/null || true
+            cat "$LOG"
+            exit 0
+          fi
+
+          wait "$APP_PID" 2>/dev/null
+          EXIT_CODE=$?
+          echo "Akron exited during smoke test with code $EXIT_CODE."
+          echo "--- Akron stdout/stderr ---"
+          cat "$LOG"
+
+          echo "--- Recent macOS diagnostic reports ---"
+          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -type f \( -iname 'Akron*.ips' -o -iname 'Akron*.crash' \) -mmin -10 -print -exec cp {} "$REPORT_DIR/" \; 2>/dev/null || true
+          ls -la "$REPORT_DIR" 2>/dev/null || true
+
+          exit "$EXIT_CODE"
+
+      - name: Upload macOS launch diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Akron-macos-launch-diagnostics
+          path: |
+            ${{ runner.temp }}/Akron-launch.log
+            ${{ runner.temp }}/Akron-crash-reports/*
+          if-no-files-found: ignore
+          compression-level: 0
+
       - name: Upload macOS app
         uses: actions/upload-artifact@v7
         with:
