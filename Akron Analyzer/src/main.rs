@@ -1,12 +1,23 @@
+use akron_analyzer::{profile_game, scanner::analyze_game};
 use anyhow::Result;
+use serde::Serialize;
 use std::path::PathBuf;
+
+#[derive(Debug, Serialize)]
+struct AnalysisReport {
+    #[serde(flatten)]
+    manifest: akron_analyzer::GameManifest,
+    profile: akron_analyzer::GameProfile,
+}
 
 fn main() -> Result<()> {
     let input = std::env::args_os().nth(1).map(PathBuf::from);
 
     match input {
         Some(path) => {
-            let report = akron_analyzer::scanner::analyze_game(&path)?;
+            let manifest = analyze_game(&path)?;
+            let profile = profile_game(&manifest)?;
+            let report = AnalysisReport { manifest, profile };
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         None => {
