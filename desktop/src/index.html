@@ -44,7 +44,7 @@
           <div>
             <p class="eyebrow">ANALYZER</p>
             <h1>Understand the entire game.</h1>
-            <p class="hero-copy">Select a game folder and Akron will build a non-destructive inventory of its files and executables.</p>
+            <p class="hero-copy">Select a game folder and Akron will inspect its files, executables, graphics APIs, Windows API surface, runtimes, and protection signals before building a game-specific adaptation plan.</p>
           </div>
           <button id="select-folder" class="primary-button" type="button">Select game folder</button>
         </section>
@@ -66,13 +66,46 @@
             <article class="stat-card"><span>PE binaries</span><strong id="pe-value">0</strong></article>
             <article class="stat-card"><span>Total size</span><strong id="size-value">0 B</strong></article>
           </div>
+
+          <div class="profile-grid">
+            <article class="info-card">
+              <div class="label">GRAPHICS</div>
+              <div id="graphics-value" class="tag-list"><span class="muted">None detected</span></div>
+            </article>
+            <article class="info-card">
+              <div class="label">WINDOWS API</div>
+              <div id="api-value" class="tag-list"><span class="muted">None detected</span></div>
+            </article>
+            <article class="info-card">
+              <div class="label">RUNTIMES</div>
+              <div id="runtime-value" class="tag-list"><span class="muted">None detected</span></div>
+            </article>
+            <article class="info-card">
+              <div class="label">PROTECTION</div>
+              <div id="protection-value" class="tag-list"><span class="muted">No signals</span></div>
+            </article>
+          </div>
+
           <div class="ready-card">
             <div class="ready-icon">✓</div>
             <div>
               <h2>Analysis complete</h2>
-              <p>The initial manifest is ready for the next Akron analysis stages.</p>
+              <p>The game profile is ready. Akron can now build a conversion plan specifically for this title.</p>
             </div>
+            <button id="plan-conversion" class="secondary-button" type="button">Prepare conversion plan</button>
           </div>
+
+          <section id="plan-card" class="plan-card" hidden>
+            <div class="plan-heading">
+              <div>
+                <div class="label">ADAPTER</div>
+                <h2>Game-specific conversion plan</h2>
+                <p>These are the modules Akron believes this game will need. Nothing is reported as successful until the corresponding work is actually completed and validated.</p>
+              </div>
+              <div id="plan-count" class="plan-count">0 steps</div>
+            </div>
+            <div id="plan-steps" class="plan-steps"></div>
+          </section>
         </section>
       </main>
     </div>
