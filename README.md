@@ -1,7 +1,7 @@
 <div align="center">
 
 <p>
-  <img src="resources/icon-rounded.svg" alt="Akron icon" width="180">
+  <img src="resources/icon.jpeg" alt="Akron icon" width="180">
 </p>
 
 # Akron
@@ -35,9 +35,9 @@ The current repository is the foundation for that system. The deep conversion en
 
 ## Branding
 
-The source artwork lives at `resources/icon.jpeg`. The GitHub README displays `resources/icon-rounded.svg`, a rounded-corner presentation wrapper around the same source artwork, so the repository page does not show a square icon.
+The source artwork is stored at `resources/icon.jpeg` and is used as the repository's Akron artwork. The native macOS build converts this source image into the `.icns` format required by the application bundle, while Finder applies the normal macOS app-icon presentation.
 
-The artwork is intentionally kept separate from the application code so platform-specific packaging can later generate the appropriate native icon formats without changing the source artwork.
+The source artwork remains separate from application code so platform-specific icon formats can be generated during builds without changing the original asset.
 
 ## Architecture
 
@@ -144,7 +144,7 @@ Not finished yet:
 - Converted-game validation and launch testing for arbitrary titles
 - Full online/API service implementation
 - Production signing and notarization
-- Final native `.icns` / `.ico` icon packaging from the source artwork
+- Windows native icon packaging from the source artwork
 - Transparent native icon asset generation from the JPEG source
 
 These are deliberate roadmap items rather than features the current build claims to provide.
@@ -205,15 +205,15 @@ npm start
 
 ## Releases
 
-Release builds are driven by `.github/workflows/release.yml`.
+Release builds are driven automatically by `.github/workflows/release.yml` whenever changes land on `main`, and the workflow can also be started manually.
 
-The initial release is `v0.1`. Each subsequent manual release run reads the latest release tag and increments the minor release component by one:
+The initial release is `v0.1`. Each subsequent release run reads the latest release tag and increments the minor release component by one:
 
 ```text
 v0.1 → v0.2 → v0.3 → … → v4.1 → v4.2
 ```
 
-The workflow updates the desktop package version and macOS bundle version together, creates the matching Git tag, and publishes a GitHub Release. GitHub Actions then builds the tagged version through the normal Build Akron workflow.
+The workflow updates the desktop package version and macOS bundle version together, creates the matching Git tag, and publishes a GitHub Release. The tag then triggers the normal Build Akron workflow automatically.
 
 ## CI and builds
 
@@ -227,7 +227,7 @@ Akron keeps verification and packaging separate.
 
 `.github/workflows/build.yml` builds the Rust runtime components and desktop application artifacts for the supported platform targets.
 
-The macOS workflow validates the application bundle, `Info.plist`, executable signature, native runtime presence, and executable architecture before uploading the artifact.
+The macOS workflow validates the application bundle, `Info.plist`, generated native icon, executable signature, native runtime presence, and executable architecture before uploading the artifact.
 
 The build workflow cancels older in-progress builds when a newer build for the same ref starts so stale builds do not consume runners unnecessarily.
 
@@ -245,8 +245,7 @@ Akron/
 │   ├── resources/         # Packaged local runtime components
 │   └── macos/              # Native macOS host and packaging
 ├── resources/              # Repository-level artwork and assets
-│   ├── icon.jpeg
-│   └── icon-rounded.svg
+│   └── icon.jpeg
 ├── tests/                 # Cross-component and future integration tests
 ├── docs/                  # Architecture and platform documentation
 └── .github/workflows/     # CI, builds, and releases
