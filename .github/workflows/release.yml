@@ -17,6 +17,9 @@ on:
 permissions:
   contents: write
 
+env:
+  GH_TOKEN: ${{ github.token }}
+
 concurrency:
   group: release-akron
   cancel-in-progress: false
@@ -81,7 +84,6 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const version = process.env.RELEASE_VERSION;
-
           const packagePath = 'desktop/package.json';
           const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
           packageJson.version = version;
@@ -147,7 +149,6 @@ jobs:
 
       - name: Create GitHub release
         env:
-          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         shell: bash
         run: |
@@ -156,3 +157,72 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "Akron $RELEASE_TAG" \
             --generate-notes
+
+      - name: Wait for tagged Build Akron workflow
+        id: build
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            run_id="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow build.yml \
+              --ref "$RELEASE_TAG" \
+              --limit 1 \
+              --json databaseId,status,conclusion \
+              --jq '.[0].databaseId // empty')"
+
+            if [[ -n "$run_id" ]]; then
+              status="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
+              conclusion="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion // empty')"
+              echo "Build run $run_id: status=$status conclusion=${conclusion:-pending}"
+
+              if [[ "$status" == "completed" ]]; then
+                if [[ "$conclusion" != "success" ]]; then
+                  echo "Tagged Build Akron failed: $conclusion" >&2
+                  exit 1
+                fi
+                echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            else
+              echo "Waiting for tagged Build Akron run..."
+            fi
+
+            sleep 10
+          done
+
+          echo "Timed out waiting for tagged Build Akron workflow." >&2
+          exit 1
+
+      - name: Download macOS release artifacts
+        env:
+          BUILD_RUN_ID: ${{ steps.build.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release-assets
+          mkdir -p release-assets
+          gh run download "$BUILD_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name akron-macos-arm64 \
+            --dir release-assets
+
+          find release-assets -type f -print
+
+      - name: Attach macOS artifacts to GitHub release
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t assets < <(find release-assets -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.sha256' \) -print)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No macOS release assets were found." >&2
+            exit 1
+          fi
+          gh release upload "$RELEASE_TAG" "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
