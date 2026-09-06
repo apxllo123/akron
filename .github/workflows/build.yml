@@ -45,64 +45,58 @@ jobs:
           rm -rf desktop/resources/*
           install -m 755 target/release/akron-analyzer desktop/resources/akron-analyzer
 
-      - name: Install Electron dependencies
+      - name: Install desktop dependencies
         working-directory: desktop
         run: npm install --no-audit --no-fund
 
-      - name: Build Electron app
+      - name: Compile renderer
         working-directory: desktop
-        run: npm run build
+        run: npm run compile:renderer
 
-      - name: Validate macOS artifact
+      - name: Stage renderer assets
+        working-directory: desktop
+        run: node scripts/build.mjs
+
+      - name: Build native macOS app
+        working-directory: desktop
+        run: bash macos/build.sh
+
+      - name: Validate native macOS artifact
         shell: bash
         run: |
           set -euo pipefail
-          APP="$(find desktop/dist -type d -name '*.app' -print -quit)"
-          test -n "$APP"
+          APP="desktop/dist-native/Akron.app"
+          ZIP="desktop/dist-native/Akron-macos-arm64.zip"
+          test -d "$APP"
+          test -f "$ZIP"
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
           test -x "$APP/Contents/MacOS/Akron"
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
+          test -f "$APP/Contents/Resources/ui/index.html"
+          test -f "$APP/Contents/Resources/ui/renderer.js"
           /usr/bin/file "$APP/Contents/MacOS/Akron"
-
-          FRAMEWORKS="$APP/Contents/Frameworks"
-          for suffix in "" " (GPU)" " (Plugin)" " (Renderer)"; do
-            HELPER="$FRAMEWORKS/Electron Helper${suffix}.app"
-            EXECUTABLE="$HELPER/Contents/MacOS/Electron Helper${suffix}"
-            test -d "$HELPER"
-            test -x "$EXECUTABLE"
-          done
-
           /usr/bin/codesign --verify --verbose=2 "$APP"
-          /usr/bin/codesign -dv --verbose=4 "$APP" 2>&1 | tee "$RUNNER_TEMP/Akron-code-signature.txt"
 
-          echo "Gatekeeper assessment is informational for this non-notarized development build:"
-          /usr/sbin/spctl --assess --type execute --verbose=4 "$APP" || true
-
-      - name: Test final ZIP through LaunchServices
+      - name: Test distributed ZIP
         shell: bash
         run: |
           set -u
-          ZIP="$(find desktop/dist -maxdepth 1 -type f -name '*.zip' -print -quit)"
-          test -n "$ZIP"
+          ZIP="desktop/dist-native/Akron-macos-arm64.zip"
           EXTRACT="$RUNNER_TEMP/Akron-distribution"
+          LOG="$RUNNER_TEMP/Akron-distribution-launch.log"
           rm -rf "$EXTRACT"
           mkdir -p "$EXTRACT"
           /usr/bin/ditto -x -k "$ZIP" "$EXTRACT"
           APP="$EXTRACT/Akron.app"
-          test -d "$APP"
 
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
           test -x "$APP/Contents/MacOS/Akron"
-          FRAMEWORKS="$APP/Contents/Frameworks"
-          for suffix in "" " (GPU)" " (Plugin)" " (Renderer)"; do
-            HELPER="$FRAMEWORKS/Electron Helper${suffix}.app"
-            EXECUTABLE="$HELPER/Contents/MacOS/Electron Helper${suffix}"
-            test -x "$EXECUTABLE"
-          done
+          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
+          test -f "$APP/Contents/Resources/ui/index.html"
+          test -f "$APP/Contents/Resources/ui/renderer.js"
           /usr/bin/codesign --verify --verbose=2 "$APP"
 
-          LOG="$RUNNER_TEMP/Akron-distribution-launch.log"
-          echo "Launching extracted Akron.app through LaunchServices"
+          echo "Launching native Akron.app through LaunchServices"
           /usr/bin/open "$APP" >"$LOG" 2>&1 || true
 
           READY=0
@@ -114,16 +108,14 @@ jobs:
             sleep 1
           done
 
-          echo "--- LaunchServices output ---"
           cat "$LOG"
-
           if [ "$READY" -eq 1 ]; then
-            echo "Extracted distributed Akron.app launched successfully through LaunchServices."
+            echo "Native distributed Akron.app launched successfully."
             pkill -f "$APP/Contents/MacOS/Akron" 2>/dev/null || true
             exit 0
           fi
 
-          echo "Extracted distributed Akron.app did not remain running after LaunchServices launch."
+          echo "Native distributed Akron.app failed to remain running."
           exit 1
 
       - name: Upload macOS launch diagnostics
@@ -131,9 +123,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Akron-macos-launch-diagnostics
-          path: |
-            ${{ runner.temp }}/Akron-distribution-launch.log
-            ${{ runner.temp }}/Akron-code-signature.txt
+          path: ${{ runner.temp }}/Akron-distribution-launch.log
           if-no-files-found: ignore
           compression-level: 0
 
@@ -141,7 +131,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Akron-macos-arm64
-          path: desktop/dist/*.zip
+          path: desktop/dist-native/Akron-macos-arm64.zip
           if-no-files-found: error
           compression-level: 0
 
