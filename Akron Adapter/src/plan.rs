@@ -250,7 +250,7 @@ fn slug(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{StepStatus, build_plan};
+    use super::{build_plan, StepStatus};
     use akron_analyzer::profile::{
         ExecutableProfile, GameProfile, GraphicsRequirements, ProtectionSummary,
     };
@@ -276,15 +276,18 @@ mod tests {
         };
 
         let plan = build_plan(&profile);
-        assert!(plan.steps.iter().any(|s| {
-            s.id == "graphics-d3d11" && s.status == StepStatus::Blocked
-        }));
-        assert!(plan.steps.iter().any(|s| {
-            s.id == "graphics-dxgi" && s.status == StepStatus::Blocked
-        }));
-        assert!(plan.steps.iter().any(|s| {
-            s.id == "validate" && s.status == StepStatus::Blocked
-        }));
+        assert!(plan
+            .steps
+            .iter()
+            .any(|s| s.id == "graphics-d3d11" && s.status == StepStatus::Blocked));
+        assert!(plan
+            .steps
+            .iter()
+            .any(|s| s.id == "graphics-dxgi" && s.status == StepStatus::Blocked));
+        assert!(plan
+            .steps
+            .iter()
+            .any(|s| s.id == "validate" && s.status == StepStatus::Blocked));
     }
 
     #[test]
@@ -303,8 +306,7 @@ mod tests {
         };
 
         let plan = build_plan(&profile);
-        assert!(plan.steps.iter().any(|s| {
-            s.id == "resolve-dependencies" && s.status == StepStatus::Blocked
-        }));
+        assert!(plan.steps.iter().any(|s| s.id == "resolve-dependencies"
+            && s.status == StepStatus::Blocked));
     }
 }
