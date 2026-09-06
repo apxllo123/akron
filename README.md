@@ -1,6 +1,6 @@
 <div align="center">
 
-[<img src="https://raw.githubusercontent.com/apxllo123/akron/refs/heads/main/resources/icon.png?v=5" width="144"/>](https://github.com/apxllo123/akron)
+[<img src="https://raw.githubusercontent.com/apxllo123/akron/refs/heads/main/resources/icon.png?v=6" width="144"/>](https://github.com/apxllo123/akron)
 
   <h1 align="center">Akron</h1>
 
