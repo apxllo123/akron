@@ -232,7 +232,7 @@ fn contains_ascii_case_insensitive(haystack: &[u8], needle: &[u8]) -> bool {
         window
             .iter()
             .zip(needle)
-            .all(|(&left, &right)| left.to_ascii_lowercase() == right.to_ascii_lowercase())
+            .all(|(&left, &right)| left.eq_ignore_ascii_case(&right))
     })
 }
 
