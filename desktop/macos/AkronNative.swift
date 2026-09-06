@@ -199,7 +199,7 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
     }
 
     private func sendProgress(message: String, percent: Int, complete: Bool) {
-        evaluate("window.__akronProgress(\(Self.jsonString(message)), \(percent), \(complete ? "true" : "false"));")
+        evaluate("window.__akronProgress(\(Self.jsonString(message)), \(percent), \(complete ? \"true\" : \"false\"));")
     }
 
     private func evaluate(_ script: String) {
@@ -258,7 +258,7 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
         analyzeGame: (gamePath) => request('analyzeGame', gamePath),
       };
     })();
-    """
+    """#
 }
 
 let app = NSApplication.shared
