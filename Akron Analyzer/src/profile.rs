@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::Read;
 use std::path::Path;
 
 use crate::manifest::{GameManifest, ProtectionSignals};
@@ -86,7 +84,6 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
 
     for exe in &manifest.executables {
         merge_protections(&mut profile.protections, &exe.protection);
-
         if !exe.format.eq_ignore_ascii_case("PE") {
             continue;
         }
@@ -103,30 +100,18 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
             &mut runtime_evidence,
         );
 
-        let architecture = if analysis.is_64 {
-            "x86_64".to_owned()
-        } else {
-            "x86".to_owned()
-        };
-        let kind = if analysis.is_library {
-            "DLL".to_owned()
-        } else {
-            "EXE".to_owned()
-        };
-
         profile.pe_binaries.push(PeBinaryProfile {
             path: exe.path.to_string_lossy().into_owned(),
-            architecture,
-            kind,
+            architecture: if analysis.is_64 { "x86_64" } else { "x86" }.to_owned(),
+            kind: if analysis.is_library { "DLL" } else { "EXE" }.to_owned(),
             imports: analysis.imports.len(),
             libraries: analysis.libraries.clone(),
         });
     }
 
     profile.pe_binaries.sort_by(|a, b| a.path.cmp(&b.path));
-    profile.windows_apis = into_requirements(api_evidence);
-    profile.runtimes = into_requirements(runtime_evidence);
-
+    profile.windows_apis = into_api_requirements(api_evidence);
+    profile.runtimes = into_runtime_requirements(runtime_evidence);
     Ok(profile)
 }
 
@@ -140,7 +125,6 @@ fn apply_pe_requirements(
     for library in &analysis.libraries {
         let library = library.to_ascii_lowercase();
         let source = path.display().to_string();
-
         match library.as_str() {
             "d3d9.dll" | "d3d9_43.dll" => {
                 graphics.direct3d9 = true;
@@ -204,14 +188,19 @@ fn apply_pe_requirements(
     }
 
     for import in &analysis.imports {
+        if !is_graphics_library(&import.library) {
+            continue;
+        }
         let source = match &import.name {
             Some(name) => format!("{} -> {}!{}", path.display(), import.library, name),
-            None => format!("{} -> {}!#{}", path.display(), import.library, import.ordinal.unwrap_or_default()),
+            None => format!(
+                "{} -> {}!#{}",
+                path.display(),
+                import.library,
+                import.ordinal.unwrap_or_default()
+            ),
         };
-
-        if is_graphics_library(&import.library) {
-            add_evidence(api_evidence, graphics_family(&import.library), source);
-        }
+        add_evidence(api_evidence, graphics_family(&import.library), source);
     }
 }
 
@@ -250,11 +239,20 @@ fn add_evidence(map: &mut BTreeMap<String, Vec<String>>, key: &str, value: Strin
     }
 }
 
-fn into_requirements(map: BTreeMap<String, Vec<String>>) -> Vec<WindowsApiRequirement> {
+fn into_api_requirements(map: BTreeMap<String, Vec<String>>) -> Vec<WindowsApiRequirement> {
     map.into_iter()
         .map(|(family, mut evidence)| {
             evidence.sort();
             WindowsApiRequirement { family, evidence }
+        })
+        .collect()
+}
+
+fn into_runtime_requirements(map: BTreeMap<String, Vec<String>>) -> Vec<RuntimeRequirement> {
+    map.into_iter()
+        .map(|(name, mut evidence)| {
+            evidence.sort();
+            RuntimeRequirement { name, evidence }
         })
         .collect()
 }
@@ -274,39 +272,12 @@ fn merge_protections(summary: &mut ProtectionSummary, signals: &ProtectionSignal
     summary.anti_cheats.sort();
 }
 
-#[allow(dead_code)]
-fn scan_non_pe_binary(
-    path: &Path,
-    graphics: &mut GraphicsRequirements,
-    api_evidence: &mut BTreeMap<String, Vec<String>>,
-    runtime_evidence: &mut BTreeMap<String, Vec<String>>,
-) -> Result<()> {
-    let mut file = File::open(path)?;
-    let mut buffer = [0_u8; 1024 * 1024];
-    let mut tail = Vec::<u8>::new();
-
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        let mut chunk = Vec::with_capacity(tail.len() + read);
-        chunk.extend_from_slice(&tail);
-        chunk.extend_from_slice(&buffer[..read]);
-        let _ = (&chunk, graphics, api_evidence, runtime_evidence);
-        const MAX_MARKER_LEN: usize = 32;
-        let keep = MAX_MARKER_LEN.saturating_sub(1).min(chunk.len());
-        tail.clear();
-        tail.extend_from_slice(&chunk[chunk.len() - keep..]);
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{GameProfile, GraphicsRequirements, apply_pe_requirements, profile_game};
+    use super::{GraphicsRequirements, apply_pe_requirements, profile_game};
     use crate::manifest::{ExecutableRecord, GameManifest, ProtectionSignals};
     use crate::pe::{PeBinaryAnalysis, PeImport};
+    use std::collections::BTreeMap;
     use std::path::PathBuf;
 
     #[test]
@@ -333,8 +304,8 @@ mod tests {
         };
 
         let mut graphics = GraphicsRequirements::default();
-        let mut apis = std::collections::BTreeMap::new();
-        let mut runtimes = std::collections::BTreeMap::new();
+        let mut apis = BTreeMap::new();
+        let mut runtimes = BTreeMap::new();
         apply_pe_requirements(
             &analysis,
             std::path::Path::new("game.exe"),
@@ -379,7 +350,4 @@ mod tests {
         std::fs::remove_file(exe).expect("remove fixture");
         std::fs::remove_dir(root).expect("remove fixture dir");
     }
-
-    #[allow(dead_code)]
-    fn _profile_type_is_deserializable(_: GameProfile) {}
 }
