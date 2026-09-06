@@ -71,11 +71,10 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
         .sections
         .iter()
         .map(|section| {
-            let name = section.real_name.clone().unwrap_or_else(|| {
-                String::from_utf8_lossy(&section.name)
-                    .trim_end_matches('\0')
-                    .to_owned()
-            });
+            let name = section
+                .real_name
+                .clone()
+                .unwrap_or_else(|| String::from_utf8_lossy(&section.name).trim_end_matches('\0').to_owned());
             PeSection {
                 name,
                 virtual_size: section.virtual_size,
