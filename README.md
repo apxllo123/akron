@@ -8,7 +8,7 @@
 
 <p>Akron analyzes a game's files, executables, dependencies, runtime requirements, graphics stack, and protection signals before an adaptation plan is generated.</p>
 
-[![ Mac Build](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/.github/workflows/%EF%A3%BFbuild.yml?label=%EF%A3%BF%20Mac%20Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/akron/actions/workflows/%EF%A3%BFbuild.yml)
+[![](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/.github/workflows/%EF%A3%BF.yml?label=%EF%A3%BF&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/akron/actions/workflows/%EF%A3%BF.yml)
 [![Release](https://img.shields.io/github/v/release/apxllo123/akron?display_name=tag&style=for-the-badge&color=7c5cff)](https://github.com/apxllo123/akron/releases)
 [![License](https://img.shields.io/github/license/apxllo123/akron?style=for-the-badge&color=2ea043)](LICENSE)
 
@@ -207,7 +207,7 @@ cargo test --workspace --all-targets
 cargo build --workspace --release
 ```
 
-### Electron checks
+### Desktop
 
 ```bash
 cd desktop
@@ -268,7 +268,7 @@ Akron separates verification from packaging while keeping both automated.
 
 ###  Mac Build
 
-`.github/workflows/build.yml` handles the macOS application build and packaging pipeline.
+`.github/workflows/.yml` handles the macOS application build and packaging pipeline.
 
 The workflow validates the application bundle, bundle metadata, native runtime presence, executable architecture, signing state, generated icon assets, ZIP/DMG checksums, DMG structure, and LaunchServices startup before publishing artifacts.
 
