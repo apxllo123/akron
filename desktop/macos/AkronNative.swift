@@ -113,9 +113,14 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
     }
 
     private func prepareStartup(id: String) {
+        guard let resources = Bundle.main.resourceURL else {
+            respondError(id: id, message: "Application resources are missing.")
+            return
+        }
+
         let workspace = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/Akron/workspace", isDirectory: true)
-        let analyzer = Bundle.main.resourceURL!.appendingPathComponent("akron-runtime/akron-analyzer")
+        let analyzer = resources.appendingPathComponent("akron-runtime/akron-analyzer")
 
         let stages: [(String, () throws -> Bool)] = [
             ("Checking application environment", { true }),
@@ -152,7 +157,14 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
 
     private func analyzeGame(id: String, gamePath: String) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let analyzer = Bundle.main.resourceURL!.appendingPathComponent("akron-runtime/akron-analyzer")
+            guard let resources = Bundle.main.resourceURL else {
+                DispatchQueue.main.async {
+                    self.respondError(id: id, message: "Application resources are missing.")
+                }
+                return
+            }
+
+            let analyzer = resources.appendingPathComponent("akron-runtime/akron-analyzer")
             let process = Process()
             let stdout = Pipe()
             let stderr = Pipe()
@@ -199,7 +211,8 @@ final class AkronController: NSObject, NSApplicationDelegate, WKNavigationDelega
     }
 
     private func sendProgress(message: String, percent: Int, complete: Bool) {
-        evaluate("window.__akronProgress(\(Self.jsonString(message)), \(percent), \(complete ? \"true\" : \"false\"));")
+        let completion = complete ? "true" : "false"
+        evaluate("window.__akronProgress(\(Self.jsonString(message)), \(percent), \(completion));")
     }
 
     private func evaluate(_ script: String) {
