@@ -4,5 +4,5 @@
       <rect width="1024" height="1024" rx="150" ry="150"/>
     </clipPath>
   </defs>
-  <image href="icon.jpeg" x="0" y="0" width="1024" height="1024" preserveAspectRatio="xMidYMid slice" clip-path="url(#rounded)"/>
+  <image href="https://raw.githubusercontent.com/apxllo123/akron/main/resources/icon.jpeg" x="0" y="0" width="1024" height="1024" preserveAspectRatio="xMidYMid slice" clip-path="url(#rounded)"/>
 </svg>
