@@ -47,6 +47,7 @@ Host: AppKit + WKWebView
 Architecture: arm64
 Electron runtime: not used
 Icon: pending dedicated Akron asset
+Validation profile: native-macos-v2
 EOF
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
