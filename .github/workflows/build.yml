@@ -32,6 +32,15 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package.json
 
+      - name: Print build toolchain
+        run: |
+          set -euo pipefail
+          rustc --version
+          swift --version
+          xcodebuild -version
+          node --version
+          npm --version
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
@@ -67,20 +76,52 @@ jobs:
           set -euo pipefail
           APP="desktop/dist-native/Akron.app"
           ZIP="desktop/dist-native/Akron-Native-macos-arm64.zip"
-          test -d "$APP"
-          test -f "$ZIP"
+
+          echo "== Paths =="
+          printf 'APP=%s\nZIP=%s\n' "$APP" "$ZIP"
+          test -d "$APP" || { echo "Missing app bundle" >&2; exit 1; }
+          test -f "$ZIP" || { echo "Missing native ZIP" >&2; exit 1; }
+
+          echo "== Main bundle =="
           /usr/bin/plutil -lint "$APP/Contents/Info.plist"
-          test -x "$APP/Contents/MacOS/Akron"
-          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
+          /usr/bin/plutil -p "$APP/Contents/Info.plist"
+          test -f "$APP/Contents/MacOS/Akron" || { echo "Missing Akron executable" >&2; exit 1; }
+          MODE="$(/usr/bin/stat -f '%Sp %OLp' "$APP/Contents/MacOS/Akron")"
+          echo "Akron mode: $MODE"
+          /usr/bin/file "$APP/Contents/MacOS/Akron"
+          test -x "$APP/Contents/MacOS/Akron" || { echo "Akron executable is not executable" >&2; ls -l "$APP/Contents/MacOS/Akron"; exit 1; }
+
+          echo "== Analyzer =="
+          ANALYZER="$APP/Contents/Resources/akron-runtime/akron-analyzer"
+          test -f "$ANALYZER" || { echo "Missing Analyzer" >&2; exit 1; }
+          test -x "$ANALYZER" || { echo "Analyzer is not executable" >&2; ls -l "$ANALYZER"; exit 1; }
+          /usr/bin/file "$ANALYZER"
+
+          echo "== Renderer =="
           test -f "$APP/Contents/Resources/ui/index.html"
           test -f "$APP/Contents/Resources/ui/renderer.js"
-          test -f "$APP/Contents/Resources/Akron-Build.txt"
-          grep -q "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt"
+          test -f "$APP/Contents/Resources/ui/styles.css"
+
+          echo "== Native marker =="
+          MARKER="$APP/Contents/Resources/Akron-Build.txt"
+          test -f "$MARKER"
+          grep -Fq "Host: AppKit + WKWebView" "$MARKER"
+          grep -Fq "Electron runtime: not used" "$MARKER"
+
+          echo "== Native package must not contain Electron runtime =="
+          if find "$APP/Contents" -type f \( -name 'Electron Framework' -o -name 'electron' -o -name 'app.asar' \) -print -quit | grep -q .; then
+            echo "Electron runtime unexpectedly present in native package" >&2
+            exit 1
+          fi
+
+          echo "== Icon =="
           test -f "$APP/Contents/Resources/Akron.icns"
-          /usr/bin/file "$APP/Contents/MacOS/Akron"
+          /usr/bin/plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist"
+
+          echo "== Code signature =="
           /usr/bin/codesign --verify --verbose=2 "$APP"
 
-      - name: Test distributed native ZIP
+      - name: Test distributed native ZIP through LaunchServices
         shell: bash
         run: |
           set -u
@@ -92,21 +133,22 @@ jobs:
           /usr/bin/ditto -x -k "$ZIP" "$EXTRACT"
           APP="$EXTRACT/Akron.app"
 
-          /usr/bin/plutil -lint "$APP/Contents/Info.plist"
+          echo "== Extracted artifact =="
+          test -d "$APP"
+          test -f "$APP/Contents/MacOS/Akron"
+          /usr/bin/file "$APP/Contents/MacOS/Akron"
           test -x "$APP/Contents/MacOS/Akron"
           test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
           test -f "$APP/Contents/Resources/ui/index.html"
-          test -f "$APP/Contents/Resources/ui/renderer.js"
           test -f "$APP/Contents/Resources/Akron-Build.txt"
-          grep -q "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt"
-          test -f "$APP/Contents/Resources/Akron.icns"
+          grep -Fq "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt"
           /usr/bin/codesign --verify --verbose=2 "$APP"
 
-          echo "Launching exact native distributed Akron.app through LaunchServices"
+          echo "== LaunchServices launch =="
           /usr/bin/open "$APP" >"$LOG" 2>&1 || true
 
           READY=0
-          for _ in $(seq 1 10); do
+          for _ in $(seq 1 15); do
             if pgrep -f "$APP/Contents/MacOS/Akron" >/dev/null 2>&1; then
               READY=1
               break
@@ -114,23 +156,19 @@ jobs:
             sleep 1
           done
 
+          echo "--- LaunchServices output ---"
           cat "$LOG"
+
           if [ "$READY" -eq 1 ]; then
             echo "Native distributed Akron.app launched successfully."
             pkill -f "$APP/Contents/MacOS/Akron" 2>/dev/null || true
             exit 0
           fi
 
-          echo "Native distributed Akron.app failed to remain running."
+          echo "Native distributed Akron.app failed to remain running." >&2
+          echo "--- Process snapshot ---" >&2
+          pgrep -alf 'Akron|akron-analyzer' >&2 || true
           exit 1
-
-      - name: Upload native macOS app
-        uses: actions/upload-artifact@v7
-        with:
-          name: Akron-macos-arm64-native
-          path: desktop/dist-native/Akron-Native-macos-arm64.zip
-          if-no-files-found: error
-          compression-level: 0
 
       - name: Upload native macOS diagnostics
         if: always()
@@ -139,6 +177,14 @@ jobs:
           name: Akron-macos-native-diagnostics
           path: ${{ runner.temp }}/Akron-native-distribution-launch.log
           if-no-files-found: ignore
+          compression-level: 0
+
+      - name: Upload native macOS app
+        uses: actions/upload-artifact@v7
+        with:
+          name: Akron-macos-arm64-native
+          path: desktop/dist-native/Akron-Native-macos-arm64.zip
+          if-no-files-found: error
           compression-level: 0
 
   windows:
