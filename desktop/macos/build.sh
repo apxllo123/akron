@@ -25,13 +25,23 @@ chmod 755 "$MACOS/Akron"
 cp "$ROOT/macos/Info.plist" "$CONTENTS/Info.plist"
 cp -R "$ROOT/dist-renderer/." "$RESOURCES/ui/"
 
+# Native builds use the same runtime staging path as Electron builds so the
+# packaged app always contains both Rust executors required by the UI bridge.
+node "$ROOT/scripts/stage-runtime.mjs"
+
 ANALYZER="$ROOT/resources/akron-analyzer"
+ADAPTER="$ROOT/resources/akron-adapter"
 if [[ ! -x "$ANALYZER" ]]; then
   echo "Missing executable Analyzer: $ANALYZER" >&2
   exit 1
 fi
+if [[ ! -x "$ADAPTER" ]]; then
+  echo "Missing executable Adapter: $ADAPTER" >&2
+  exit 1
+fi
 cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
-chmod 755 "$RESOURCES/akron-runtime/akron-analyzer"
+cp "$ADAPTER" "$RESOURCES/akron-runtime/akron-adapter"
+chmod 755 "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 
 # The native macOS build intentionally does not depend on Electron.
 rm -f "$RESOURCES/Akron.icns"
@@ -49,11 +59,12 @@ Validation profile: native-macos-v3
 Build version: $BUILD_VERSION
 Git SHA: $BUILD_SHA
 Distribution: ZIP + DMG
+Runtime: Analyzer + Adapter
 EOF
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
 
-chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
+chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 
 SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
 if [[ "$SIGNING_IDENTITY" == "-" ]]; then
@@ -67,9 +78,10 @@ fi
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 /usr/bin/codesign --display --verbose=4 "$APP" || true
 
-chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
+chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 /usr/bin/file "$MACOS/Akron"
 /usr/bin/file "$RESOURCES/akron-runtime/akron-analyzer"
+/usr/bin/file "$RESOURCES/akron-runtime/akron-adapter"
 
 # Keep the ZIP for scripting/debugging and add a native Finder-friendly DMG.
 ZIP="$OUT/Akron-Native-macos-arm64.zip"
@@ -106,6 +118,8 @@ trap '/usr/bin/hdiutil detach "$MOUNT_PATH" -quiet >/dev/null 2>&1 || true' EXIT
 test -d "$MOUNT_PATH/Akron.app"
 test -d "$MOUNT_PATH/Applications"
 test -x "$MOUNT_PATH/Akron.app/Contents/MacOS/Akron"
+test -x "$MOUNT_PATH/Akron.app/Contents/Resources/akron-runtime/akron-analyzer"
+test -x "$MOUNT_PATH/Akron.app/Contents/Resources/akron-runtime/akron-adapter"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$MOUNT_PATH/Akron.app"
 /usr/bin/ditto --rsrc "$MOUNT_PATH/Akron.app/Contents/Resources/Akron-Build.txt" /tmp/akron-dmg-marker.txt
 /usr/bin/hdiutil detach "$MOUNT_PATH" -quiet
