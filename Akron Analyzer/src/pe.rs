@@ -12,6 +12,7 @@ pub struct PeBinaryAnalysis {
     pub image_base: u64,
     pub libraries: Vec<String>,
     pub imports: Vec<PeImport>,
+    pub exports: Vec<PeExport>,
     pub sections: Vec<PeSection>,
 }
 
@@ -20,6 +21,13 @@ pub struct PeImport {
     pub library: String,
     pub name: Option<String>,
     pub ordinal: Option<u16>,
+    pub rva: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PeExport {
+    pub name: Option<String>,
+    pub ordinal: u32,
     pub rva: u64,
 }
 
@@ -67,6 +75,22 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
             .then_with(|| a.rva.cmp(&b.rva))
     });
 
+    let mut exports = pe
+        .exports
+        .iter()
+        .map(|export| PeExport {
+            name: export.name.map(str::to_owned),
+            ordinal: export.ordinal,
+            rva: export.rva as u64,
+        })
+        .collect::<Vec<_>>();
+    exports.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| a.ordinal.cmp(&b.ordinal))
+            .then_with(|| a.rva.cmp(&b.rva))
+    });
+
     let mut sections = pe
         .sections
         .iter()
@@ -95,6 +119,7 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
         image_base: pe.image_base,
         libraries,
         imports,
+        exports,
         sections,
     })
 }
