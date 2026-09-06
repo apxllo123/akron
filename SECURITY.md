@@ -1,8 +1,8 @@
-# Akron Security
-
 <div align="center">
 
-<strong>Security Policy & Responsible Disclosure</strong>
+# 🔐 Akron Security
+
+**Security Policy & Responsible Disclosure**
 
 Security guidance for Akron source code, desktop components, binary analysis, build automation, and published application artifacts.
 
