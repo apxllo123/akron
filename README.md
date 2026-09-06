@@ -1,6 +1,6 @@
 <div align="center">
 
-[<img src="https://raw.githubusercontent.com/apxllo123/akron/refs/heads/main/resources/icon.png?v=3" width="144"/>](https://github.com/apxllo123/akron)
+[<img src="https://raw.githubusercontent.com/apxllo123/akron/refs/heads/main/resources/icon.png?v=4" width="144"/>](https://github.com/apxllo123/akron)
 
   <h1 align="center">Akron</h1>
 
@@ -30,7 +30,7 @@ The current repository is the foundation for that system. The deep conversion en
 
 ## Branding
 
-The canonical Akron icon is stored at `resources/icon.png`. It is a rounded-corner PNG with transparency and is used as the source artwork for application packaging. The original JPEG artwork remains available at `resources/icon.jpeg`.
+The canonical Akron icon is stored at `resources/icon.png`. It is a rounded-corner PNG with transparent corners and is used as the source artwork for application packaging. The original JPEG artwork remains available at `resources/icon.jpeg`.
 
 The build system converts the canonical PNG into the platform-specific `.icns` and `.ico` assets required by macOS and Windows packaging.
 
