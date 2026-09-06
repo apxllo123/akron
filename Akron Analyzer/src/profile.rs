@@ -266,18 +266,24 @@ mod tests {
                 ..GraphicsRequirements::default()
             }
         );
-        assert!(profile
-            .windows_apis
-            .iter()
-            .any(|v| v.family == "windowing/input"));
-        assert!(profile
-            .windows_apis
-            .iter()
-            .any(|v| v.family == "networking"));
-        assert!(profile
-            .runtimes
-            .iter()
-            .any(|v| v.name == "Microsoft Visual C++ 2015-2022"));
+        assert!(
+            profile
+                .windows_apis
+                .iter()
+                .any(|v| v.family == "windowing/input")
+        );
+        assert!(
+            profile
+                .windows_apis
+                .iter()
+                .any(|v| v.family == "networking")
+        );
+        assert!(
+            profile
+                .runtimes
+                .iter()
+                .any(|v| v.name == "Microsoft Visual C++ 2015-2022")
+        );
 
         std::fs::remove_file(exe).expect("remove fixture");
         std::fs::remove_dir(root).expect("remove fixture dir");
