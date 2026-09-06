@@ -42,17 +42,18 @@ await mkdir(buildDir, { recursive: true });
 await rm(iconSet, { recursive: true, force: true });
 await mkdir(iconSet, { recursive: true });
 
-// Never crop or stretch the source artwork. The complete image is fitted inside
-// a square transparent canvas, then clipped with a real alpha rounded-corner mask.
 const roundedMask = Buffer.from(
   `<svg width="${CANVAS_SIZE}" height="${CANVAS_SIZE}" xmlns="http://www.w3.org/2000/svg"><rect width="${CANVAS_SIZE}" height="${CANVAS_SIZE}" rx="${CORNER_RADIUS}" ry="${CORNER_RADIUS}" fill="white"/></svg>`,
 );
 
+// Never crop or stretch the artwork. Fit the entire source inside a transparent
+// square, then use real alpha transparency to round the corners.
 await sharp(actualSource)
   .resize(CANVAS_SIZE, CANVAS_SIZE, {
     fit: 'contain',
     background: { r: 0, g: 0, b: 0, alpha: 0 },
   })
+  .ensureAlpha()
   .composite([{ input: roundedMask, blend: 'dest-in' }])
   .png()
   .toFile(iconPng);
@@ -61,7 +62,25 @@ const icoSizes = [16, 24, 32, 48, 64, 128, 256];
 const icoPngs = [];
 for (const size of icoSizes) {
   const output = join(buildDir, `icon-${size}.png`);
-  await sharp(iconPng).resize(size, size).png().toFile(output);
+  await writeFile(
+    output,
+    await sharp(actualSource)
+      .resize(size, size, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .ensureAlpha()
+      .composite([
+        {
+          input: Buffer.from(
+            `<svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg"><rect width="${size}" height="${size}" rx="${Math.max(1, Math.round(size * 0.15))}" ry="${Math.max(1, Math.round(size * 0.15))}" fill="white"/></svg>`,
+          ),
+          blend: 'dest-in',
+        },
+      ])
+      .png()
+      .toBuffer(),
+  );
   icoPngs.push(output);
 }
 await writeFile(iconIco, await pngToIco(icoPngs));
