@@ -86,7 +86,7 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
             }
         })
         .collect::<Vec<_>>();
-    sections.sort_by(|a, b| a.virtual_address.cmp(&b.virtual_address));
+    sections.sort_by_key(|section| section.virtual_address);
 
     Ok(PeBinaryAnalysis {
         is_64: pe.is_64,
