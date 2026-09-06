@@ -25,8 +25,6 @@ chmod 755 "$MACOS/Akron"
 cp "$ROOT/macos/Info.plist" "$CONTENTS/Info.plist"
 cp -R "$ROOT/dist-renderer/." "$RESOURCES/ui/"
 
-# Native builds use the same runtime staging path as Electron builds so the
-# packaged app always contains both Rust executors required by the UI bridge.
 node "$ROOT/scripts/stage-runtime.mjs"
 
 ANALYZER="$ROOT/resources/akron-analyzer"
@@ -43,14 +41,17 @@ cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
 cp "$ADAPTER" "$RESOURCES/akron-runtime/akron-adapter"
 chmod 755 "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 
-# Generate the native macOS icon from the repository source artwork.
-# Finder provides the standard rounded presentation for application icons.
-ICON_SOURCE="$ROOT/../resources/icon.jpeg"
+# Use the canonical rounded PNG when present. Keep JPEG as a compatibility
+# fallback so older checkouts remain buildable until resources/icon.png lands.
+ICON_SOURCE="$ROOT/../resources/icon.png"
+if [[ ! -f "$ICON_SOURCE" ]]; then
+  ICON_SOURCE="$ROOT/../resources/icon.jpeg"
+fi
 ICONSET="$OUT/Akron.iconset"
 ICON_PNG="$OUT/Akron-source.png"
 ICON_ICNS="$RESOURCES/Akron.icns"
 if [[ ! -f "$ICON_SOURCE" ]]; then
-  echo "Missing Akron icon source: $ICON_SOURCE" >&2
+  echo "Missing Akron icon source: expected resources/icon.png or resources/icon.jpeg" >&2
   exit 1
 fi
 rm -rf "$ICONSET" "$ICON_PNG" "$ICON_ICNS"
@@ -74,7 +75,7 @@ Akron native macOS build
 Host: AppKit + WKWebView
 Architecture: arm64
 Electron runtime: not used
-Icon: Akron.icns generated from resources/icon.jpeg
+Icon: Akron.icns generated from $ICON_SOURCE
 Validation profile: native-macos-v4
 Build version: $BUILD_VERSION
 Git SHA: $BUILD_SHA
@@ -83,7 +84,6 @@ Runtime: Analyzer + Adapter
 EOF
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
-
 chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 
 SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:--}"
@@ -97,7 +97,6 @@ fi
 
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
 /usr/bin/codesign --display --verbose=4 "$APP" || true
-
 chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer" "$RESOURCES/akron-runtime/akron-adapter"
 /usr/bin/file "$MACOS/Akron"
 /usr/bin/file "$ICON_ICNS"
@@ -115,14 +114,12 @@ rm -rf "$DMG_STAGE" "$DMG"
 mkdir -p "$DMG_STAGE"
 /usr/bin/ditto "$APP" "$DMG_STAGE/Akron.app"
 ln -s /Applications "$DMG_STAGE/Applications"
-
 /usr/bin/hdiutil create \
   -volname "Akron" \
   -srcfolder "$DMG_STAGE" \
   -ov \
   -format UDZO \
   "$DMG"
-
 rm -rf "$DMG_STAGE"
 
 MOUNT_INFO="$(/usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen)"
@@ -146,7 +143,6 @@ trap - EXIT
 rm -f /tmp/akron-dmg-marker.txt
 
 /usr/bin/shasum -a 256 "$DMG" | /usr/bin/tee "$OUT/Akron-Native-macos-arm64.dmg.sha256"
-
 printf 'Native macOS ZIP: %s\n' "$ZIP"
 printf 'Native macOS DMG: %s\n' "$DMG"
 printf 'ZIP checksum: %s\n' "$OUT/Akron-Native-macos-arm64.zip.sha256"
