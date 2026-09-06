@@ -58,10 +58,6 @@ jobs:
               echo "Latest tag '$latest_tag' is not a supported Akron release version." >&2
               exit 1
             fi
-
-            # Akron releases advance 0.1 -> ... -> 0.9 -> 1.0 -> 1.1.
-            # Normalize the malformed 0.10/0.11 releases that were created by
-            # the previous increment-only versioning logic.
             if [[ "$major" == "0" && "$minor" -ge 9 ]]; then
               release_version="1.0.0"
             elif (( minor >= 9 )); then
@@ -74,9 +70,6 @@ jobs:
           release_tag="v${release_version%.*}"
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
           echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
-          echo "Current package version: $current"
-          echo "Latest release tag: ${latest_tag:-<none>}"
-          echo "Next release: $release_tag ($release_version)"
 
           if git rev-parse "$release_tag" >/dev/null 2>&1; then
             echo "Release tag already exists: $release_tag" >&2
@@ -103,14 +96,11 @@ jobs:
           import os
           import plistlib
           from pathlib import Path
-
           path = Path('desktop/macos/Info.plist')
           with path.open('rb') as handle:
               plist = plistlib.load(handle)
-
           plist['CFBundleShortVersionString'] = os.environ['RELEASE_VERSION']
           plist['CFBundleVersion'] = os.environ['BUILD_NUMBER']
-
           with path.open('wb') as handle:
               plistlib.dump(plist, handle, fmt=plistlib.FMT_XML, sort_keys=False)
           PY
@@ -130,14 +120,12 @@ jobs:
           )"
           test "$package_version" = "$RELEASE_VERSION"
           test "$plist_version" = "$RELEASE_VERSION"
-          echo "Verified application version: $RELEASE_VERSION"
 
       - name: Commit version bump
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet -- desktop/package.json desktop/macos/Info.plist; then
-            echo "No version-file changes required for the initial release."
             exit 0
           fi
           git config user.name "github-actions[bot]"
@@ -162,10 +150,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "Akron $RELEASE_TAG" \
-            --generate-notes
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Akron $RELEASE_TAG" --generate-notes
 
       - name: Wait for tagged Build Akron workflow
         id: build
@@ -178,31 +163,23 @@ jobs:
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --workflow build.yml \
-              --ref "$RELEASE_TAG" \
-              --limit 1 \
-              --json databaseId,status,conclusion \
-              --jq '.[0].databaseId // empty')"
-
+              --limit 20 \
+              --json databaseId,status,conclusion,headBranch,event \
+              --jq 'map(select(.headBranch == env.RELEASE_TAG and .event == "push")) | .[0].databaseId // empty')"
             if [[ -n "$run_id" ]]; then
               status="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
               conclusion="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion // empty')"
               echo "Build run $run_id: status=$status conclusion=${conclusion:-pending}"
-
               if [[ "$status" == "completed" ]]; then
-                if [[ "$conclusion" != "success" ]]; then
-                  echo "Tagged Build Akron failed: $conclusion" >&2
-                  exit 1
-                fi
+                [[ "$conclusion" == "success" ]] || { echo "Tagged Build Akron failed: $conclusion" >&2; exit 1; }
                 echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
                 exit 0
               fi
             else
               echo "Waiting for tagged Build Akron run..."
             fi
-
             sleep 10
           done
-
           echo "Timed out waiting for tagged Build Akron workflow." >&2
           exit 1
 
@@ -214,11 +191,7 @@ jobs:
           set -euo pipefail
           rm -rf release-assets
           mkdir -p release-assets
-          gh run download "$BUILD_RUN_ID" \
-            --repo "$GITHUB_REPOSITORY" \
-            --name akron-macos-arm64 \
-            --dir release-assets
-
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name akron-macos-arm64 --dir release-assets
           find release-assets -type f -print
 
       - name: Attach macOS artifacts to GitHub release
@@ -228,10 +201,5 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t assets < <(find release-assets -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.sha256' \) -print)
-          if (( ${#assets[@]} == 0 )); then
-            echo "No macOS release assets were found." >&2
-            exit 1
-          fi
-          gh release upload "$RELEASE_TAG" "${assets[@]}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+          (( ${#assets[@]} > 0 )) || { echo "No macOS release assets were found." >&2; exit 1; }
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
