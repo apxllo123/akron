@@ -4,4 +4,4 @@ pub mod profile;
 pub mod scanner;
 
 pub use manifest::GameManifest;
-pub use profile::{GameProfile, profile_game};
+pub use profile::{BinaryDependency, GameProfile, profile_game};
