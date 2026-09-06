@@ -21,20 +21,21 @@ on:
 
 permissions:
   contents: write
-  actions: write
-
-env:
-  GH_TOKEN: ${{ github.token }}
 
 concurrency:
   group: release-akron
   cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
 
 jobs:
   release:
     if: github.actor != 'github-actions[bot]'
     name: Bump and publish Akron release
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.mode.outputs.tag }}
 
     steps:
       - name: Checkout main
@@ -55,7 +56,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ -n "$RELEASE_TAG_INPUT" ]]; then
             release_tag="${RELEASE_TAG_INPUT#v}"
             if [[ "$release_tag" =~ ^([0-9]+)\.([0-9]+)(\.0)?$ ]]; then
@@ -64,16 +64,14 @@ jobs:
               echo "Invalid release_tag '$RELEASE_TAG_INPUT'. Expected v1.9 or v1.9.0." >&2
               exit 1
             fi
-            release_version="${release_tag#v}.0"
             echo "mode=resume" >> "$GITHUB_OUTPUT"
-            echo "version=$release_version" >> "$GITHUB_OUTPUT"
+            echo "version=${release_tag#v}.0" >> "$GITHUB_OUTPUT"
             echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
           current="$(node -p "require('./desktop/package.json').version")"
-
           if [[ -z "$latest_tag" ]]; then
             release_version="$current"
           else
@@ -96,7 +94,6 @@ jobs:
           echo "mode=new" >> "$GITHUB_OUTPUT"
           echo "version=$release_version" >> "$GITHUB_OUTPUT"
           echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
-
           if git rev-parse "$release_tag" >/dev/null 2>&1; then
             echo "Release tag already exists: $release_tag" >&2
             exit 1
@@ -113,15 +110,13 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const version = process.env.RELEASE_VERSION;
-          const packagePath = 'desktop/package.json';
-          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-          packageJson.version = version;
-          fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+          const path = 'desktop/package.json';
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          pkg.version = version;
+          fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
           NODE
-
           python3 - <<'PY'
-          import os
-          import plistlib
+          import os, plistlib
           from pathlib import Path
           path = Path('desktop/macos/Info.plist')
           with path.open('rb') as handle:
@@ -139,24 +134,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          package_version="$(node -p "require('./desktop/package.json').version")"
-          plist_version="$(python3 - <<'PY'
+          test "$(node -p "require('./desktop/package.json').version")" = "$RELEASE_VERSION"
+          test "$(python3 - <<'PY'
           import plistlib
           with open('desktop/macos/Info.plist', 'rb') as handle:
               print(plistlib.load(handle)['CFBundleShortVersionString'])
           PY
-          )"
-          test "$package_version" = "$RELEASE_VERSION"
-          test "$plist_version" = "$RELEASE_VERSION"
+          )" = "$RELEASE_VERSION"
 
       - name: Commit version bump
         if: steps.mode.outputs.mode == 'new'
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- desktop/package.json desktop/macos/Info.plist; then
-            exit 0
-          fi
+          if git diff --quiet -- desktop/package.json desktop/macos/Info.plist; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add desktop/package.json desktop/macos/Info.plist
@@ -189,87 +180,47 @@ jobs:
             gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "Akron $RELEASE_TAG" --generate-notes
           fi
 
-      - name: Find or start tagged  Build
-        id: build
-        env:
-          RELEASE_TAG: ${{ steps.mode.outputs.tag }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
-          echo "Looking for  Build for $RELEASE_TAG at $tag_sha"
+  macos-build:
+    name: Build  macOS release
+    needs: release
+    uses: ./.github/workflows/.yml
+    with:
+      ref: ${{ needs.release.outputs.release_tag }}
 
-          run_id="$(gh run list \
-            --repo "$GITHUB_REPOSITORY" \
-            --workflow '.yml' \
-            --commit "$tag_sha" \
-            --limit 20 \
-            --json databaseId,status,conclusion,event,headSha \
-            --jq ".[] | select(.headSha == \"$tag_sha\" and (.event == \"workflow_dispatch\" or .event == \"push\")) | .databaseId" | head -n 1)"
-
-          if [[ -n "$run_id" ]]; then
-            echo "Found existing  Build run $run_id before waiting."
-          else
-            echo "No existing  Build run found; dispatching one for $RELEASE_TAG."
-            gh workflow run '.yml' --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_TAG"
-          fi
-
-          for attempt in $(seq 1 90); do
-            if [[ -z "$run_id" ]]; then
-              run_id="$(gh run list \
-                --repo "$GITHUB_REPOSITORY" \
-                --workflow '.yml' \
-                --commit "$tag_sha" \
-                --limit 20 \
-                --json databaseId,status,conclusion,event,headSha \
-                --jq ".[] | select(.headSha == \"$tag_sha\" and .event == \"workflow_dispatch\") | .databaseId" | head -n 1)"
-            fi
-
-            if [[ -n "$run_id" ]]; then
-              status="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json status --jq '.status')"
-              conclusion="$(gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json conclusion --jq '.conclusion // empty')"
-              echo " Build run $run_id: status=$status conclusion=${conclusion:-pending}"
-              if [[ "$status" == "completed" ]]; then
-                [[ "$conclusion" == "success" ]] || { echo " Build failed: $conclusion" >&2; exit 1; }
-                echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-            else
-              echo " Build has not appeared yet; checking again..."
-            fi
-            sleep 2
-          done
-
-          echo "Timed out waiting for  Build workflow." >&2
-          exit 1
-
-      - name: Download macOS release artifacts
-        env:
-          BUILD_RUN_ID: ${{ steps.build.outputs.run_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf release-assets
-          mkdir -p release-assets
-          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name akron-macos-arm64 --dir release-assets
-          find release-assets -type f -print
+  publish-macos:
+    name: Publish  macOS release assets
+    needs: [release, macos-build]
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
+    steps:
+      - name: Download macOS build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: akron-macos-arm64
+          path: release-assets
 
       - name: Verify release assets
         shell: bash
         run: |
           set -euo pipefail
-          count="$(find release-assets -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.sha256' \) | wc -l | tr -d ' ')"
-          [[ "$count" -eq 4 ]] || {
-            echo "Expected exactly 4 macOS release assets, found $count." >&2
-            find release-assets -type f -print >&2
-            exit 1
-          }
+          find release-assets -type f -print
+          for asset in \
+            release-assets/Akron-Native-macos-arm64.zip \
+            release-assets/Akron-Native-macos-arm64.zip.sha256 \
+            release-assets/Akron-Native-macos-arm64.dmg \
+            release-assets/Akron-Native-macos-arm64.dmg.sha256; do
+            test -f "$asset" || { echo "Missing release asset: $asset" >&2; exit 1; }
+          done
 
       - name: Attach macOS artifacts to GitHub release
-        env:
-          RELEASE_TAG: ${{ steps.mode.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t assets < <(find release-assets -type f \( -name '*.zip' -o -name '*.dmg' -o -name '*.sha256' \) -print)
-          gh release upload "$RELEASE_TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$RELEASE_TAG" \
+            release-assets/Akron-Native-macos-arm64.zip \
+            release-assets/Akron-Native-macos-arm64.zip.sha256 \
+            release-assets/Akron-Native-macos-arm64.dmg \
+            release-assets/Akron-Native-macos-arm64.dmg.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
