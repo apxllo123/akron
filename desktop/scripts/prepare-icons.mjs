@@ -15,6 +15,8 @@ const iconPng = join(buildDir, 'icon.png');
 const iconIco = join(buildDir, 'icon.ico');
 const iconSet = join(buildDir, 'Akron.iconset');
 const iconIcns = join(buildDir, 'icon.icns');
+const CANVAS_SIZE = 1024;
+const CORNER_RADIUS = 150;
 
 async function command(command, args) {
   await new Promise((resolvePromise, reject) => {
@@ -40,13 +42,26 @@ await mkdir(buildDir, { recursive: true });
 await rm(iconSet, { recursive: true, force: true });
 await mkdir(iconSet, { recursive: true });
 
-await sharp(actualSource).resize(1024, 1024, { fit: 'cover' }).png().toFile(iconPng);
+// Never crop or stretch the source artwork. The complete image is fitted inside
+// a square transparent canvas, then clipped with a real alpha rounded-corner mask.
+const roundedMask = Buffer.from(
+  `<svg width="${CANVAS_SIZE}" height="${CANVAS_SIZE}" xmlns="http://www.w3.org/2000/svg"><rect width="${CANVAS_SIZE}" height="${CANVAS_SIZE}" rx="${CORNER_RADIUS}" ry="${CORNER_RADIUS}" fill="white"/></svg>`,
+);
+
+await sharp(actualSource)
+  .resize(CANVAS_SIZE, CANVAS_SIZE, {
+    fit: 'contain',
+    background: { r: 0, g: 0, b: 0, alpha: 0 },
+  })
+  .composite([{ input: roundedMask, blend: 'dest-in' }])
+  .png()
+  .toFile(iconPng);
 
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
 const icoPngs = [];
 for (const size of icoSizes) {
   const output = join(buildDir, `icon-${size}.png`);
-  await sharp(actualSource).resize(size, size, { fit: 'cover' }).png().toFile(output);
+  await sharp(iconPng).resize(size, size).png().toFile(output);
   icoPngs.push(output);
 }
 await writeFile(iconIco, await pngToIco(icoPngs));
