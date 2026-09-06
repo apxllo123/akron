@@ -31,11 +31,28 @@ fi
 cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
 chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
 
+# Preserve the icon used by the previous Electron distribution until a
+# dedicated Akron .icns asset is added. npm install provides this asset.
+ELECTRON_ICON="$ROOT/node_modules/electron/dist/Electron.app/Contents/Resources/electron.icns"
+if [[ -f "$ELECTRON_ICON" ]]; then
+  cp "$ELECTRON_ICON" "$RESOURCES/Akron.icns"
+  /usr/bin/plutil -replace CFBundleIconFile -string "Akron.icns" "$CONTENTS/Info.plist"
+fi
+
+# Make the native build unmistakable when extracted from GitHub Actions.
+cat > "$RESOURCES/Akron-Build.txt" <<'EOF'
+Akron native macOS build
+Host: AppKit + WKWebView
+Architecture: arm64
+Electron runtime: not used
+EOF
+
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
-/usr/bin/codesign --force --deep --sign - "$APP"
+/usr/bin/codesign --force --sign - "$APP"
 /usr/bin/codesign --verify --verbose=2 "$APP"
 
-rm -f "$OUT/Akron-macos-arm64.zip"
-/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT/Akron-macos-arm64.zip"
+ZIP="$OUT/Akron-Native-macos-arm64.zip"
+rm -f "$ZIP"
+/usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
-echo "Native macOS artifact: $OUT/Akron-macos-arm64.zip"
+echo "Native macOS artifact: $ZIP"
