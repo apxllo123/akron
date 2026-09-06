@@ -18,11 +18,9 @@
     "@types/node": "26.4.1",
     "electron": "44.2.0",
     "electron-builder": "26.16.0",
+    "png-to-ico": "3.0.2",
+    "sharp": "0.34.5",
     "typescript": "7.0.2"
-  },
-  "dependencies": {
-    "png-to-ico": "^2.1.4",
-    "sharp": "^0.34.5"
   },
   "build": {
     "appId": "com.apxllo.akron",
