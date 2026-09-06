@@ -82,6 +82,48 @@ jobs:
           echo "Gatekeeper assessment is informational for this non-notarized development build:"
           /usr/sbin/spctl --assess --type execute --verbose=4 "$APP" || true
 
+      - name: Test final ZIP as distributed
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$(find desktop/dist -maxdepth 1 -type f -name '*.zip' -print -quit)"
+          test -n "$ZIP"
+          EXTRACT="$RUNNER_TEMP/Akron-distribution"
+          rm -rf "$EXTRACT"
+          mkdir -p "$EXTRACT"
+          /usr/bin/ditto -x -k "$ZIP" "$EXTRACT"
+          APP="$EXTRACT/Akron.app"
+          test -d "$APP"
+          /usr/bin/plutil -lint "$APP/Contents/Info.plist"
+          test -x "$APP/Contents/MacOS/Akron"
+          FRAMEWORKS="$APP/Contents/Frameworks"
+          for suffix in "" " (GPU)" " (Plugin)" " (Renderer)"; do
+            HELPER="$FRAMEWORKS/Electron Helper${suffix}.app"
+            EXECUTABLE="$HELPER/Contents/MacOS/Electron Helper${suffix}"
+            PLIST="$HELPER/Contents/Info.plist"
+            test -x "$EXECUTABLE"
+            ACTUAL_EXECUTABLE="$(/usr/bin/plutil -extract CFBundleExecutable raw "$PLIST")"
+            test "$ACTUAL_EXECUTABLE" = "Electron Helper${suffix}"
+          done
+          /usr/bin/codesign --verify --verbose=2 "$APP"
+
+          LOG="$RUNNER_TEMP/Akron-distribution-launch.log"
+          "$APP/Contents/MacOS/Akron" >"$LOG" 2>&1 &
+          APP_PID=$!
+          sleep 8
+          if kill -0 "$APP_PID" 2>/dev/null; then
+            echo "Extracted distributed Akron.app remained running after 8 seconds."
+            kill "$APP_PID" 2>/dev/null || true
+            wait "$APP_PID" 2>/dev/null || true
+            cat "$LOG"
+            exit 0
+          fi
+          wait "$APP_PID" 2>/dev/null
+          EXIT_CODE=$?
+          cat "$LOG"
+          echo "Extracted distributed Akron.app exited with code $EXIT_CODE"
+          exit "$EXIT_CODE"
+
       - name: Smoke test packaged macOS app
         shell: bash
         run: |
@@ -124,6 +166,7 @@ jobs:
           name: Akron-macos-launch-diagnostics
           path: |
             ${{ runner.temp }}/Akron-launch.log
+            ${{ runner.temp }}/Akron-distribution-launch.log
             ${{ runner.temp }}/Akron-crash-reports/*
           if-no-files-found: ignore
           compression-level: 0
