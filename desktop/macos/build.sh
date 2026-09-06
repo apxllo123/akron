@@ -20,6 +20,10 @@ swiftc \
   "$ROOT/macos/AkronNative.swift" \
   -o "$MACOS/Akron"
 
+# Swift normally creates an executable here, but enforce the mode explicitly so
+# the packaged app cannot lose execute permission during later file operations.
+chmod 755 "$MACOS/Akron"
+
 cp "$ROOT/macos/Info.plist" "$CONTENTS/Info.plist"
 cp -R "$ROOT/dist-renderer/." "$RESOURCES/ui/"
 
@@ -29,10 +33,10 @@ if [[ ! -x "$ANALYZER" ]]; then
   exit 1
 fi
 cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
-chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
+chmod 755 "$RESOURCES/akron-runtime/akron-analyzer"
 
 # Preserve the icon used by the previous Electron distribution until a
-# dedicated Akron .icns asset is added. npm install provides this asset.
+# dedicated Akron .icns asset is added.
 ELECTRON_ICON="$ROOT/node_modules/electron/dist/Electron.app/Contents/Resources/electron.icns"
 if [[ -f "$ELECTRON_ICON" ]]; then
   cp "$ELECTRON_ICON" "$RESOURCES/Akron.icns"
@@ -48,7 +52,15 @@ Electron runtime: not used
 EOF
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
+
+# Re-assert executable modes immediately before signing and archive creation.
+chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
+
 /usr/bin/codesign --force --sign - "$APP"
+/usr/bin/codesign --verify --verbose=2 "$APP"
+
+# Code signing must not leave the launch binaries non-executable.
+chmod 755 "$MACOS/Akron" "$RESOURCES/akron-runtime/akron-analyzer"
 /usr/bin/codesign --verify --verbose=2 "$APP"
 
 ZIP="$OUT/Akron-Native-macos-arm64.zip"
