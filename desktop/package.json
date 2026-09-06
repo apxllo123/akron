@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Akron desktop application",
+  "author": "apxllo",
   "main": "dist-electron/main.js",
   "scripts": {
     "build": "npm run typecheck && npm run compile && npm run compile:renderer && node scripts/build.mjs && electron-builder",
@@ -32,7 +33,6 @@
         "filter": ["**/*"]
       }
     ],
-    "afterPack": "./scripts/afterPack.cjs",
     "mac": {
       "target": ["zip"],
       "category": "public.app-category.games",
