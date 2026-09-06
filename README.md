@@ -10,6 +10,7 @@
 
 [![Build Akron](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/build.yml?label=Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/akron/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/apxllo123/akron?display_name=tag&style=for-the-badge&color=7c5cff)](https://github.com/apxllo123/akron/releases)
+[![Security](https://img.shields.io/badge/Security-responsible--disclosure-2ea44f?style=for-the-badge&color=2ea44f)](SECURITY.md)
 [![License](https://img.shields.io/github/license/apxllo123/akron?style=for-the-badge&color=2ea043)](LICENSE)
 
 </div>
@@ -336,28 +337,22 @@ The core principles are:
 ## 🗺️ Roadmap
 
 ### Phase 1 — Understand
-
-Create a complete, reliable description of the game's files, binaries, dependencies, and runtime assumptions.
+Create complete and trustworthy game manifests.
 
 ### Phase 2 — Model
-
-Turn analysis evidence into capability profiles and adaptation requirements.
+Turn evidence into dependency graphs and capability profiles.
 
 ### Phase 3 — Adapt
-
-Implement the platform-specific executors required by the generated plan.
+Resolve target-platform requirements and generate concrete adaptation plans.
 
 ### Phase 4 — Convert
-
-Produce target-platform application packages while preserving game content and behavior wherever technically possible.
+Execute those plans through verified native conversion backends.
 
 ### Phase 5 — Validate
-
-Automatically launch and exercise converted titles, capture diagnostics, and compare expected versus observed behavior.
+Launch and exercise converted applications automatically and collect failure data.
 
 ### Phase 6 — Improve
-
-Use measured compatibility and failure data to expand coverage and reduce manual intervention.
+Use compatibility results to make future analyses and adaptations increasingly automatic.
 
 ## 🖥️ Platform Focus
 
