@@ -1,10 +1,16 @@
 <div align="center">
 
-# 🔐 Akron Security
+[<img src="https://raw.githubusercontent.com/apxllo123/akron/main/resources/icon.png?v=13" width="144" alt="Akron icon"/>](https://github.com/apxllo123/akron)
 
-**Security Policy · Responsible Disclosure · Secure Development**
+  <h1 align="center">Akron Security</h1>
 
-*Security guidance for Akron source code, desktop components, binary analysis, build automation, and published application artifacts.*
+  <p align="center">
+    <strong>Security Policy & Responsible Disclosure</strong>
+  </p>
+
+  <p align="center">
+    Security guidance for Akron source code, desktop components, binary analysis, build automation, and published application artifacts.
+  </p>
 
 [![Security](https://img.shields.io/badge/Security-responsible--disclosure-2ea44f?style=for-the-badge&color=2ea44f)](SECURITY.md)
 [![License](https://img.shields.io/github/license/apxllo123/akron?style=for-the-badge&color=2ea043)](LICENSE)
@@ -13,24 +19,24 @@
 
 ---
 
-## 🚨 `REPORTING A VULNERABILITY`
+## 🚨 Reporting a Vulnerability
 
 > **Please do not open a public GitHub issue for a suspected security vulnerability.**
 >
 > Use GitHub's **private vulnerability reporting** for this repository when available.
 
-A strong report should make it possible to **reproduce, understand, and assess** the issue without exposing unnecessary sensitive information.
+A useful report should make it possible to **reproduce, understand, and assess** the issue without exposing unnecessary sensitive information.
 
 | **Information** | **What to provide** |
 | --- | --- |
-| `Impact` | What an attacker could cause, access, or expose |
-| `Affected area` | Component, file, workflow, release, package, or trust boundary |
-| `Reproduction` | Clear steps or a minimal proof of concept when appropriate |
-| `Affected version` | Release, commit, or build identifier |
-| `Environment` | OS, architecture, configuration, and relevant dependencies |
-| `Evidence` | Logs, traces, or screenshots with sensitive information removed |
+| **Impact** | What an attacker could cause, access, or expose |
+| **Affected area** | Component, source file, workflow, release, package, or trust boundary |
+| **Reproduction** | Clear steps or a minimal proof of concept when appropriate |
+| **Affected version** | Release, commit, or build identifier |
+| **Environment** | Operating system, architecture, configuration, and relevant dependencies |
+| **Evidence** | Logs, traces, screenshots, or other useful evidence with sensitive information removed |
 
-### 🔐 `NEVER INCLUDE SECRETS`
+### 🔐 Never Include Secrets
 
 Never include `passwords`, `API keys`, `access tokens`, `private keys`, `signing credentials`, `cookies`, recovery codes, or other authentication material in a report.
 
@@ -38,7 +44,7 @@ If credentials are exposed, revoke or rotate them immediately and report the inc
 
 ---
 
-## 🛡️ `SUPPORTED VERSIONS`
+## 🛡️ Supported Versions
 
 Akron is under active development. Security fixes are prioritized for the latest code on `main` and the newest published release.
 
@@ -48,9 +54,11 @@ Akron is under active development. Security fixes are prioritized for the latest
 | **Latest release** | ✅ **Active where practical** |
 | Older releases | ⚠️ Not guaranteed |
 
+Because Akron is evolving quickly, users should upgrade to the latest available build before investigating an issue that may already be fixed.
+
 ---
 
-## 🔎 `SECURITY-SENSITIVE AREAS`
+## 🔎 Security-Sensitive Areas
 
 Akron crosses several trust boundaries. The following areas receive particular security attention.
 
@@ -93,7 +101,7 @@ Rust and Node.js dependencies are part of Akron's attack surface. Security advis
 
 ---
 
-## 🧪 `SECURE DEVELOPMENT`
+## 🧪 Secure Development
 
 Security-sensitive changes should receive verification appropriate to their risk:
 
@@ -106,11 +114,11 @@ Security-sensitive changes should receive verification appropriate to their risk
 
 > **Do not disable a security check simply to make CI pass.** Fix the underlying issue or document a deliberate, reviewed exception.
 
-For changes involving GitHub Actions, native execution, file-system access, binary parsing, or release packaging, review both the normal path and failure paths.
+For changes involving GitHub Actions, native execution, file-system access, binary parsing, or release packaging, review both normal and failure paths.
 
 ---
 
-## ✅ `PRE-RELEASE SECURITY CHECKLIST`
+## ✅ Pre-Release Security Checklist
 
 ```text
 INPUT         → untrusted data is validated
@@ -125,7 +133,7 @@ CI            → permissions are no broader than necessary
 
 ---
 
-## 📬 `WHAT HAPPENS AFTER A REPORT?`
+## 📬 What Happens After a Report?
 
 Reports are reviewed as soon as practical. Depending on severity and scope, a valid report may result in a code fix, mitigation, dependency update, workflow correction, documentation change, or security release.
 
@@ -133,13 +141,22 @@ During investigation and remediation, security issues should remain private. Aft
 
 With the reporter's permission, responsible researchers may be credited for confirmed security fixes.
 
-## 📦 `SCOPE`
+---
 
-This policy covers Akron source code and configuration, GitHub Actions workflows and release automation, published Akron artifacts, and vulnerabilities introduced by Akron's own code or build configuration.
+## 📦 Scope
+
+This policy covers:
+
+- Akron source code and configuration
+- GitHub Actions workflows and release automation
+- Published Akron application artifacts
+- Vulnerabilities introduced by Akron's own code or build configuration
 
 Issues entirely contained within a third-party game, operating system, DRM system, library, service, or other external component should normally also be reported to the appropriate upstream maintainer.
 
-## 🧭 `SAFE SECURITY RESEARCH`
+---
+
+## 🧭 Safe Security Research
 
 Security research should be performed in a controlled environment and should avoid unnecessary access to other users' data or systems.
 
