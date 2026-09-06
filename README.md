@@ -1,7 +1,7 @@
 <div align="center">
 
 <p>
-  <img src="resources/icon.jpeg" alt="Akron icon" width="180">
+  <img src="resources/icon-rounded.svg" alt="Akron icon" width="180">
 </p>
 
 # Akron
@@ -15,7 +15,11 @@
 </p>
 
 [![Build Akron](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/build.yml?label=Build)](https://github.com/apxllo123/akron/actions/workflows/build.yml)
+[![Latest Release](https://img.shields.io/github/v/release/apxllo123/akron?display_name=tag&label=Release)](https://github.com/apxllo123/akron/releases)
 [![License](https://img.shields.io/github/license/apxllo123/akron)](LICENSE)
+
+**Current release:** `v0.1`  
+Release versions advance automatically by `0.1` for each published release (`0.1` → `0.2` → … → `4.1` → `4.2`).
 
 </div>
 
@@ -31,7 +35,7 @@ The current repository is the foundation for that system. The deep conversion en
 
 ## Branding
 
-The current Akron source artwork is stored at `resources/icon.jpeg` and is used as the repository's reference icon asset.
+The source artwork lives at `resources/icon.jpeg`. The GitHub README displays `resources/icon-rounded.svg`, a rounded-corner presentation wrapper around the same source artwork, so the repository page does not show a square icon.
 
 The artwork is intentionally kept separate from the application code so platform-specific packaging can later generate the appropriate native icon formats without changing the source artwork.
 
@@ -127,6 +131,7 @@ Implemented today:
 - Windows application packaging
 - Rust formatting, compilation, Clippy, tests, and release-build CI
 - Electron typechecking and build pipeline
+- Automated release-versioning workflow
 
 Not finished yet:
 
@@ -139,7 +144,8 @@ Not finished yet:
 - Converted-game validation and launch testing for arbitrary titles
 - Full online/API service implementation
 - Production signing and notarization
-- Final native icon packaging formats and transparent icon asset generation
+- Final native `.icns` / `.ico` icon packaging from the source artwork
+- Transparent native icon asset generation from the JPEG source
 
 These are deliberate roadmap items rather than features the current build claims to provide.
 
@@ -197,6 +203,18 @@ npm install
 npm start
 ```
 
+## Releases
+
+Release builds are driven by `.github/workflows/release.yml`.
+
+The initial release is `v0.1`. Each subsequent manual release run reads the latest release tag and increments the minor release component by one:
+
+```text
+v0.1 → v0.2 → v0.3 → … → v4.1 → v4.2
+```
+
+The workflow updates the desktop package version and macOS bundle version together, creates the matching Git tag, and publishes a GitHub Release. GitHub Actions then builds the tagged version through the normal Build Akron workflow.
+
 ## CI and builds
 
 Akron keeps verification and packaging separate.
@@ -227,10 +245,11 @@ Akron/
 │   ├── resources/         # Packaged local runtime components
 │   └── macos/              # Native macOS host and packaging
 ├── resources/              # Repository-level artwork and assets
-│   └── icon.jpeg
+│   ├── icon.jpeg
+│   └── icon-rounded.svg
 ├── tests/                 # Cross-component and future integration tests
 ├── docs/                  # Architecture and platform documentation
-└── .github/workflows/     # CI and build automation
+└── .github/workflows/     # CI, builds, and releases
 ```
 
 ## Engineering principles
