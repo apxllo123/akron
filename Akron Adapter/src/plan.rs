@@ -250,7 +250,7 @@ fn slug(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_plan, StepStatus};
+    use super::{StepStatus, build_plan};
     use akron_analyzer::profile::{
         ExecutableProfile, GameProfile, GraphicsRequirements, ProtectionSummary,
     };
