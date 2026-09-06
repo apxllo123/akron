@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
 use crate::manifest::{GameManifest, ProtectionSignals};
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GameProfile {
     pub executables: Vec<ExecutableProfile>,
     pub graphics: GraphicsRequirements,
@@ -15,14 +15,14 @@ pub struct GameProfile {
     pub protections: ProtectionSummary,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ExecutableProfile {
     pub path: String,
     pub architecture: Option<String>,
     pub format: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GraphicsRequirements {
     pub direct3d9: bool,
     pub direct3d10: bool,
@@ -33,19 +33,19 @@ pub struct GraphicsRequirements {
     pub opengl: bool,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct WindowsApiRequirement {
     pub family: String,
     pub evidence: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RuntimeRequirement {
     pub name: String,
     pub evidence: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProtectionSummary {
     pub packers_or_protectors: Vec<String>,
     pub anti_cheats: Vec<String>,
