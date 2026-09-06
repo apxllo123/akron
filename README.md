@@ -8,7 +8,7 @@
 
 <p>Akron analyzes a game's files, executables, dependencies, runtime requirements, graphics stack, and protection signals before an adaptation plan is generated.</p>
 
-[![Build Akron](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/.github/workflows/%EF%A3%BFbuild.yml?label=Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/akron/actions/workflows/%EF%A3%BFbuild.yml)
+[![ Mac Build](https://img.shields.io/github/actions/workflow/status/apxllo123/akron/.github/workflows/%EF%A3%BFbuild.yml?label=%EF%A3%BF%20Mac%20Build&style=for-the-badge&color=4c8bf5)](https://github.com/apxllo123/akron/actions/workflows/%EF%A3%BFbuild.yml)
 [![Release](https://img.shields.io/github/v/release/apxllo123/akron?display_name=tag&style=for-the-badge&color=7c5cff)](https://github.com/apxllo123/akron/releases)
 [![License](https://img.shields.io/github/license/apxllo123/akron?style=for-the-badge&color=2ea043)](LICENSE)
 
@@ -266,11 +266,11 @@ Documentation-only changes are intentionally excluded from expensive application
 
 Akron separates verification from packaging while keeping both automated.
 
-### Build Akron
+###  Mac Build
 
-`.github/workflows/build.yml` handles application builds and packaging for the supported targets.
+`.github/workflows/build.yml` handles the macOS application build and packaging pipeline.
 
-The macOS build validates the application bundle, bundle metadata, native runtime presence, executable architecture, signing state, and generated icon assets before publishing artifacts.
+The workflow validates the application bundle, bundle metadata, native runtime presence, executable architecture, signing state, generated icon assets, ZIP/DMG checksums, DMG structure, and LaunchServices startup before publishing artifacts.
 
 ### Rust CI
 
@@ -357,7 +357,7 @@ Automatically launch and exercise converted titles, capture diagnostics, and com
 
 ### Phase 6 — Improve
 
-Use measured compatibility and failure data to make future analyses and adaptations increasingly automatic.
+Use measured compatibility and failure data to expand coverage and reduce manual intervention.
 
 ## 🖥️ Platform Focus
 
