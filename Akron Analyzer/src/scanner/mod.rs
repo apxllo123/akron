@@ -5,7 +5,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use walkdir::WalkDir;
 
-use crate::manifest::{ExecutableRecord, FileRecord, GameManifest};
+use crate::manifest::{ExecutableRecord, FileRecord, GameManifest, ProtectionSignals};
 
 pub fn analyze_game(root: &Path) -> Result<GameManifest> {
     let root = root
@@ -45,9 +45,10 @@ pub fn analyze_game(root: &Path) -> Result<GameManifest> {
 
         if matches!(extension.as_deref(), Some("exe" | "dll" | "sys")) {
             executables.push(ExecutableRecord {
-                path: relative,
+                path: relative.clone(),
                 format: detect_binary_format(path)?,
                 architecture: detect_pe_architecture(path)?,
+                protection: detect_protection_signals(path, &relative)?,
             });
         }
     }
@@ -120,4 +121,189 @@ fn detect_pe_architecture(path: &Path) -> Result<Option<String>> {
     };
 
     Ok(Some(arch.to_owned()))
+}
+
+/// Detects well-known executable protection markers as non-authoritative signals.
+///
+/// This deliberately does not attempt to disable, bypass, or modify protections.
+/// The results are intended for adaptation planning and diagnostics only.
+fn detect_protection_signals(path: &Path, relative_path: &Path) -> Result<ProtectionSignals> {
+    let lower_name = relative_path.to_string_lossy().to_ascii_lowercase();
+    let mut protection = ProtectionSignals::default();
+
+    let packer_markers = [
+        (b"upx0".as_slice(), "UPX"),
+        (b"upx1".as_slice(), "UPX"),
+        (b"upx2".as_slice(), "UPX"),
+        (b"aspack".as_slice(), "ASPack"),
+        (b"mpress".as_slice(), "MPRESS"),
+        (b"themida".as_slice(), "Themida"),
+        (b"vmprotect".as_slice(), "VMProtect"),
+        (b"enigma".as_slice(), "Enigma Protector"),
+    ];
+
+    let anti_cheat_markers = [
+        (b"easyanticheat".as_slice(), "Easy Anti-Cheat"),
+        (b"easyanticheat_eos".as_slice(), "Easy Anti-Cheat EOS"),
+        (b"battleye".as_slice(), "BattlEye"),
+        (b"bedaisy".as_slice(), "BattlEye"),
+        (b"vgk".as_slice(), "Riot Vanguard"),
+        (b"vanguard".as_slice(), "Riot Vanguard"),
+        (b"gameguard".as_slice(), "nProtect GameGuard"),
+        (b"xigncode".as_slice(), "XIGNCODE3"),
+    ];
+
+    scan_ascii_markers(path, &packer_markers, &anti_cheat_markers, &mut protection)?;
+
+    for (marker, label) in anti_cheat_markers {
+        if contains_ascii_case_insensitive(lower_name.as_bytes(), marker)
+            && !protection.anti_cheats.iter().any(|v| v == label)
+        {
+            protection.anti_cheats.push(label.to_owned());
+        }
+    }
+
+    protection.packers_or_protectors.sort();
+    protection.anti_cheats.sort();
+    Ok(protection)
+}
+
+fn scan_ascii_markers(
+    path: &Path,
+    packer_markers: &[(&[u8], &str)],
+    anti_cheat_markers: &[(&[u8], &str)],
+    protection: &mut ProtectionSignals,
+) -> Result<()> {
+    let mut file =
+        File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let max_marker_len = packer_markers
+        .iter()
+        .chain(anti_cheat_markers.iter())
+        .map(|(marker, _)| marker.len())
+        .max()
+        .unwrap_or(1);
+
+    let mut carry = Vec::new();
+    let mut buffer = [0_u8; 1024 * 1024];
+
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+
+        let mut chunk = Vec::with_capacity(carry.len() + read);
+        chunk.extend_from_slice(&carry);
+        chunk.extend_from_slice(&buffer[..read]);
+
+        for (marker, label) in packer_markers {
+            if contains_ascii_case_insensitive(&chunk, marker)
+                && !protection.packers_or_protectors.iter().any(|v| v == label)
+            {
+                protection.packers_or_protectors.push((*label).to_owned());
+            }
+        }
+
+        for (marker, label) in anti_cheat_markers {
+            if contains_ascii_case_insensitive(&chunk, marker)
+                && !protection.anti_cheats.iter().any(|v| v == label)
+            {
+                protection.anti_cheats.push((*label).to_owned());
+            }
+        }
+
+        let keep = max_marker_len.saturating_sub(1).min(chunk.len());
+        carry.clear();
+        carry.extend_from_slice(&chunk[chunk.len() - keep..]);
+    }
+
+    Ok(())
+}
+
+fn contains_ascii_case_insensitive(haystack: &[u8], needle: &[u8]) -> bool {
+    if needle.is_empty() {
+        return true;
+    }
+    if needle.len() > haystack.len() {
+        return false;
+    }
+
+    haystack.windows(needle.len()).any(|window| {
+        window
+            .iter()
+            .zip(needle)
+            .all(|(&left, &right)| left.to_ascii_lowercase() == right.to_ascii_lowercase())
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{contains_ascii_case_insensitive, detect_protection_signals};
+    use std::fs;
+    use std::path::Path;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn detects_known_protection_markers_without_modifying_input() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock before unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("akron-protection-{unique}.exe"));
+        let data = b"This contains UPX0, VMProtect, and EasyAntiCheat markers.";
+        fs::write(&path, data).expect("write fixture");
+
+        let before = fs::read(&path).expect("read fixture");
+        let signals = detect_protection_signals(&path, Path::new("fixture.exe"))
+            .expect("detect signals");
+        let after = fs::read(&path).expect("read fixture after analysis");
+
+        assert_eq!(before, after);
+        assert!(signals.packers_or_protectors.contains(&"UPX".to_owned()));
+        assert!(signals.packers_or_protectors.contains(&"VMProtect".to_owned()));
+        assert!(signals.anti_cheats.contains(&"Easy Anti-Cheat".to_owned()));
+
+        fs::remove_file(path).expect("remove fixture");
+    }
+
+    #[test]
+    fn detects_markers_split_across_read_boundaries() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock before unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("akron-protection-boundary-{unique}.exe"));
+        let mut data = vec![b'A'; 1024 * 1024 - 3];
+        data.extend_from_slice(b"UPX0");
+        fs::write(&path, data).expect("write fixture");
+
+        let signals = detect_protection_signals(&path, Path::new("fixture.exe"))
+            .expect("detect signals");
+        assert!(signals.packers_or_protectors.contains(&"UPX".to_owned()));
+
+        fs::remove_file(path).expect("remove fixture");
+    }
+
+    #[test]
+    fn ascii_marker_matching_is_case_insensitive() {
+        assert!(contains_ascii_case_insensitive(b"vMpRoTeCt", b"vmprotect"));
+        assert!(!contains_ascii_case_insensitive(b"ordinary data", b"vmprotect"));
+    }
+
+    #[test]
+    fn ignores_unrelated_data() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock before unix epoch")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("akron-protection-clean-{unique}.exe"));
+        fs::write(&path, b"ordinary executable data").expect("write fixture");
+
+        let signals = detect_protection_signals(&path, Path::new("fixture.exe"))
+            .expect("detect signals");
+        assert!(signals.packers_or_protectors.is_empty());
+        assert!(signals.anti_cheats.is_empty());
+
+        fs::remove_file(path).expect("remove fixture");
+    }
 }
