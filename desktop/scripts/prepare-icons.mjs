@@ -10,7 +10,6 @@ const desktopRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const repoRoot = resolve(desktopRoot, '..');
 const pngSource = join(repoRoot, 'resources', 'icon.png');
 const jpegFallback = join(repoRoot, 'resources', 'icon.jpeg');
-const source = pngSource;
 const buildDir = join(desktopRoot, 'build');
 const iconPng = join(buildDir, 'icon.png');
 const iconIco = join(buildDir, 'icon.ico');
@@ -28,20 +27,19 @@ async function command(command, args) {
   });
 }
 
-let actualSource = source;
+let actualSource;
 try {
-  await access(actualSource, constants.F_OK);
+  await access(pngSource, constants.F_OK);
+  actualSource = pngSource;
 } catch {
+  await access(jpegFallback, constants.F_OK);
   actualSource = jpegFallback;
-  await access(actualSource, constants.F_OK);
 }
 
 await mkdir(buildDir, { recursive: true });
 await rm(iconSet, { recursive: true, force: true });
 await mkdir(iconSet, { recursive: true });
 
-// Keep the repository artwork untouched. Generate the platform assets from
-// resources/icon.png when available, with the original JPEG as a safe fallback.
 await sharp(actualSource).resize(1024, 1024, { fit: 'cover' }).png().toFile(iconPng);
 
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
@@ -56,9 +54,15 @@ await writeFile(iconIco, await pngToIco(icoPngs));
 if (process.platform === 'darwin') {
   const icnsSizes = [16, 32, 128, 256, 512];
   for (const size of icnsSizes) {
-    await command('/usr/bin/sips', ['-z', String(size), String(size), iconPng, '--out', join(iconSet, `${size}x${size}.png`)]);
+    await command('/usr/bin/sips', [
+      '-z', String(size), String(size), iconPng, '--out',
+      join(iconSet, `icon_${size}x${size}.png`),
+    ]);
     const doubled = size * 2;
-    await command('/usr/bin/sips', ['-z', String(doubled), String(doubled), iconPng, '--out', join(iconSet, `${size}x${size}@2x.png`)]);
+    await command('/usr/bin/sips', [
+      '-z', String(doubled), String(doubled), iconPng, '--out',
+      join(iconSet, `icon_${size}x${size}@2x.png`),
+    ]);
   }
   await command('/usr/bin/iconutil', ['-c', 'icns', iconSet, '-o', iconIcns]);
   await access(iconIcns, constants.F_OK);
