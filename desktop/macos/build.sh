@@ -35,13 +35,10 @@ fi
 cp "$ANALYZER" "$RESOURCES/akron-runtime/akron-analyzer"
 chmod 755 "$RESOURCES/akron-runtime/akron-analyzer"
 
-# Preserve the icon used by the previous Electron distribution until a
-# dedicated Akron .icns asset is added.
-ELECTRON_ICON="$ROOT/node_modules/electron/dist/Electron.app/Contents/Resources/electron.icns"
-if [[ -f "$ELECTRON_ICON" ]]; then
-  cp "$ELECTRON_ICON" "$RESOURCES/Akron.icns"
-  /usr/bin/plutil -replace CFBundleIconFile -string "Akron.icns" "$CONTENTS/Info.plist"
-fi
+# The native macOS build intentionally does not depend on Electron. A dedicated
+# Akron .icns asset will be added later; until then macOS uses its generic icon.
+rm -f "$RESOURCES/Akron.icns"
+/usr/bin/plutil -delete CFBundleIconFile "$CONTENTS/Info.plist" 2>/dev/null || true
 
 # Make the native build unmistakable when extracted from GitHub Actions.
 cat > "$RESOURCES/Akron-Build.txt" <<'EOF'
@@ -49,6 +46,7 @@ Akron native macOS build
 Host: AppKit + WKWebView
 Architecture: arm64
 Electron runtime: not used
+Icon: pending dedicated Akron asset
 EOF
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist"
