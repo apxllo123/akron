@@ -12,6 +12,7 @@ pub struct PeBinaryAnalysis {
     pub image_base: u64,
     pub libraries: Vec<String>,
     pub imports: Vec<PeImport>,
+    pub exports: Vec<PeExport>,
     pub sections: Vec<PeSection>,
 }
 
@@ -21,6 +22,14 @@ pub struct PeImport {
     pub name: Option<String>,
     pub ordinal: Option<u16>,
     pub rva: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PeExport {
+    pub name: Option<String>,
+    pub rva: u64,
+    pub size: usize,
+    pub reexport: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -67,6 +76,24 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
             .then_with(|| a.rva.cmp(&b.rva))
     });
 
+    let mut exports = pe
+        .exports
+        .iter()
+        .map(|export| PeExport {
+            name: export.name.map(str::to_owned),
+            rva: export.rva as u64,
+            size: export.size,
+            reexport: export.reexport.as_ref().map(format_reexport),
+        })
+        .collect::<Vec<_>>();
+    exports.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| a.rva.cmp(&b.rva))
+            .then_with(|| a.size.cmp(&b.size))
+            .then_with(|| a.reexport.cmp(&b.reexport))
+    });
+
     let mut sections = pe
         .sections
         .iter()
@@ -95,14 +122,62 @@ pub fn analyze_pe(path: &Path) -> Result<PeBinaryAnalysis> {
         image_base: pe.image_base,
         libraries,
         imports,
+        exports,
         sections,
     })
 }
 
+fn format_reexport(reexport: &goblin::pe::export::Reexport<'_>) -> String {
+    match reexport {
+        goblin::pe::export::Reexport::DLLName { export, lib } => {
+            format!("{}!{}", lib, export)
+        }
+        goblin::pe::export::Reexport::DLLOrdinal { ordinal, lib } => {
+            format!("{}!#{}", lib, ordinal)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::analyze_pe;
+    use super::{PeExport, analyze_pe};
     use std::path::Path;
+
+    #[test]
+    fn export_records_are_stably_ordered() {
+        let mut exports = vec![
+            PeExport {
+                name: Some("Zed".to_owned()),
+                rva: 0x3000,
+                size: 32,
+                reexport: None,
+            },
+            PeExport {
+                name: Some("Alpha".to_owned()),
+                rva: 0x1000,
+                size: 16,
+                reexport: None,
+            },
+            PeExport {
+                name: None,
+                rva: 0x2000,
+                size: 8,
+                reexport: Some("other.dll!Target".to_owned()),
+            },
+        ];
+
+        exports.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then_with(|| a.rva.cmp(&b.rva))
+                .then_with(|| a.size.cmp(&b.size))
+                .then_with(|| a.reexport.cmp(&b.reexport))
+        });
+
+        assert_eq!(exports[0].name.as_deref(), Some("Alpha"));
+        assert_eq!(exports[1].name.as_deref(), Some("Zed"));
+        assert_eq!(exports[2].name, None);
+    }
 
     #[test]
     fn rejects_non_pe_input() {
