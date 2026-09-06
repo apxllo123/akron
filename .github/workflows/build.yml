@@ -65,13 +65,15 @@ jobs:
           /usr/bin/file "$APP/Contents/MacOS/Akron"
 
           FRAMEWORKS="$APP/Contents/Frameworks"
-          for helper in "Electron Helper.app" "Electron Helper (GPU).app" "Electron Helper (Plugin).app" "Electron Helper (Renderer).app"; do
-            HELPER_APP="$FRAMEWORKS/$helper"
-            test -d "$HELPER_APP"
-            /usr/bin/plutil -lint "$HELPER_APP/Contents/Info.plist"
-            EXECUTABLE="$(/usr/bin/plutil -extract CFBundleExecutable raw "$HELPER_APP/Contents/Info.plist")"
-            test -n "$EXECUTABLE"
-            test -x "$HELPER_APP/Contents/MacOS/$EXECUTABLE"
+          for suffix in "" " (GPU)" " (Plugin)" " (Renderer)"; do
+            HELPER="$FRAMEWORKS/Electron Helper${suffix}.app"
+            EXECUTABLE="$HELPER/Contents/MacOS/Electron Helper${suffix}"
+            PLIST="$HELPER/Contents/Info.plist"
+            test -d "$HELPER"
+            test -x "$EXECUTABLE"
+            test -f "$PLIST"
+            ACTUAL_EXECUTABLE="$(/usr/bin/plutil -extract CFBundleExecutable raw "$PLIST")"
+            test "$ACTUAL_EXECUTABLE" = "Electron Helper${suffix}"
           done
 
           /usr/bin/codesign --verify --verbose=2 "$APP"
