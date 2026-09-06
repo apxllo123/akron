@@ -3,7 +3,21 @@ name: Rust CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'Akron Analyzer/**'
+      - 'Akron Adapter/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/rust.yml'
   pull_request:
+    paths:
+      - 'Akron Analyzer/**'
+      - 'Akron Adapter/**'
+      - 'tests/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/rust.yml'
   workflow_dispatch:
 
 concurrency:
