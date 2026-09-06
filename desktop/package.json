@@ -33,6 +33,7 @@
         "filter": ["**/*"]
       }
     ],
+    "afterPack": "./scripts/afterPack.cjs",
     "mac": {
       "target": ["zip"],
       "category": "public.app-category.games",
