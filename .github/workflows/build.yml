@@ -139,7 +139,7 @@ jobs:
           cat "$MARKER"
           grep -Fq "Host: AppKit + WKWebView" "$MARKER" || { echo "FAIL: wrong native host marker" >&2; exit 1; }
           grep -Fq "Electron runtime: not used" "$MARKER" || { echo "FAIL: native marker says Electron runtime is used" >&2; exit 1; }
-          grep -Fq "Validation profile: native-macos-v4" "$MARKER" || { echo "FAIL: stale native validation profile" >&2; exit 1; }
+          grep -Fq "Validation profile: native-macos-v5" "$MARKER" || { echo "FAIL: stale native validation profile" >&2; exit 1; }
           grep -Fq "Git SHA: $GITHUB_SHA" "$MARKER" || { echo "FAIL: artifact Git SHA does not match workflow commit" >&2; exit 1; }
           grep -Fq "Distribution: ZIP + DMG" "$MARKER" || { echo "FAIL: native distribution marker missing ZIP + DMG" >&2; exit 1; }
 
