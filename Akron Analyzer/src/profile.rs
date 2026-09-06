@@ -10,6 +10,7 @@ use crate::pe::{PeImport, analyze_pe};
 pub struct GameProfile {
     pub executables: Vec<ExecutableProfile>,
     pub pe_binaries: Vec<PeBinaryProfile>,
+    pub dependencies: Vec<BinaryDependency>,
     pub graphics: GraphicsRequirements,
     pub windows_apis: Vec<WindowsApiRequirement>,
     pub runtimes: Vec<RuntimeRequirement>,
@@ -80,6 +81,7 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
             })
             .collect(),
         pe_binaries: Vec::new(),
+        dependencies: Vec::new(),
         graphics: GraphicsRequirements::default(),
         windows_apis: Vec::new(),
         runtimes: Vec::new(),
@@ -114,9 +116,10 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
         let architecture = if analysis.is_64 { "x86_64" } else { "x86" }.to_owned();
         let kind = if analysis.is_library { "DLL" } else { "EXE" }.to_owned();
         let libraries = analysis.libraries.clone();
+        let importer = relative_path.to_string_lossy().into_owned();
 
         profile.pe_binaries.push(PeBinaryProfile {
-            path: relative_path.to_string_lossy().into_owned(),
+            path: importer.clone(),
             architecture,
             kind,
             import_count: analysis.imports.len(),
@@ -133,22 +136,21 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
             );
 
             let library = normalize_library(&import.library);
+            let dependency = BinaryDependency {
+                importer: importer.clone(),
+                library: library.clone(),
+            };
+            profile.dependencies.push(dependency.clone());
+
             if !is_platform_provided(&library) && !bundled_files.contains(&library) {
-                profile.unresolved_imports.push(BinaryDependency {
-                    importer: relative_path.to_string_lossy().into_owned(),
-                    library,
-                });
+                profile.unresolved_imports.push(dependency);
             }
         }
     }
 
     profile.pe_binaries.sort_by(|a, b| a.path.cmp(&b.path));
-    profile.unresolved_imports.sort_by(|a, b| {
-        a.importer
-            .cmp(&b.importer)
-            .then_with(|| a.library.cmp(&b.library))
-    });
-    profile.unresolved_imports.dedup();
+    sort_dependencies(&mut profile.dependencies);
+    sort_dependencies(&mut profile.unresolved_imports);
 
     profile.windows_apis = api_evidence
         .into_iter()
@@ -167,6 +169,15 @@ pub fn profile_game(manifest: &GameManifest) -> Result<GameProfile> {
         .collect();
 
     Ok(profile)
+}
+
+fn sort_dependencies(dependencies: &mut Vec<BinaryDependency>) {
+    dependencies.sort_by(|a, b| {
+        a.importer
+            .cmp(&b.importer)
+            .then_with(|| a.library.cmp(&b.library))
+    });
+    dependencies.dedup();
 }
 
 fn manifest_bundled_file_names(manifest: &GameManifest) -> BTreeSet<String> {
@@ -299,9 +310,33 @@ fn is_platform_provided(library: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{GameProfile, GraphicsRequirements, profile_game};
+    use super::{BinaryDependency, GameProfile, GraphicsRequirements, profile_game, sort_dependencies};
     use crate::manifest::{ExecutableRecord, FileRecord, GameManifest, ProtectionSignals};
     use std::path::PathBuf;
+
+    #[test]
+    fn dependency_graph_is_deterministic_and_deduplicated() {
+        let mut dependencies = vec![
+            BinaryDependency {
+                importer: "z.dll".to_owned(),
+                library: "kernel32.dll".to_owned(),
+            },
+            BinaryDependency {
+                importer: "a.exe".to_owned(),
+                library: "renderer.dll".to_owned(),
+            },
+            BinaryDependency {
+                importer: "z.dll".to_owned(),
+                library: "kernel32.dll".to_owned(),
+            },
+        ];
+
+        sort_dependencies(&mut dependencies);
+
+        assert_eq!(dependencies.len(), 2);
+        assert_eq!(dependencies[0].importer, "a.exe");
+        assert_eq!(dependencies[1].importer, "z.dll");
+    }
 
     #[test]
     fn rejects_raw_strings_as_graphics_evidence() {
@@ -326,6 +361,8 @@ mod tests {
             GraphicsRequirements::default(),
             GameProfile {
                 executables: Vec::new(),
+                pe_binaries: Vec::new(),
+                dependencies: Vec::new(),
                 pe_binaries: Vec::new(),
                 graphics: GraphicsRequirements::default(),
                 windows_apis: Vec::new(),
