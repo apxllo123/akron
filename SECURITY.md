@@ -1,61 +1,132 @@
 # Security Policy
 
+<div align="center">
+
+**Akron Security & Responsible Disclosure**
+
+[Report a Vulnerability](#reporting-a-vulnerability) · [Security-Sensitive Areas](#security-sensitive-areas) · [Supported Versions](#supported-versions)
+
+</div>
+
+---
+
+Akron is designed to inspect, analyze, adapt, package, and eventually run software originating from external game files. Because that work crosses file-system, native-process, build, and packaging boundaries, security is treated as a first-class engineering concern.
+
+This document explains which versions are supported, how to report security issues privately, and the areas that receive additional security scrutiny.
+
 ## Supported Versions
 
-Akron is currently under active development. Security fixes are prioritized for the latest version on the `main` branch.
+Akron is under active development and is currently pre-1.0. Security fixes are prioritized for the latest code on `main` and the latest published release.
 
-| Version | Supported |
+| Version | Security support |
 | --- | --- |
-| Latest `main` | ✅ |
-| Older releases | ❌ |
+| Latest `main` | ✅ Active |
+| Latest published release | ✅ Active where practical |
+| Older releases | ❌ Not guaranteed |
 
-Because Akron is still pre-1.0, compatibility and security support for older releases may change as the project evolves.
+Older builds may contain issues that have already been corrected in newer revisions. Users should upgrade to the latest available release when possible.
 
-## Reporting a Security Vulnerability
+## Reporting a Vulnerability
 
-Please **do not** report security vulnerabilities through a public GitHub issue.
+**Please do not open a public GitHub issue for a security vulnerability.**
 
-For a vulnerability that could affect users, builds, packaged applications, credentials, or the repository itself, use GitHub's private security reporting mechanism for this repository when available. This allows the issue to be reviewed without publicly disclosing exploit details.
+Use GitHub's private vulnerability reporting mechanism for this repository when it is available. Private reporting lets the maintainers investigate the issue without immediately publishing exploit details.
 
-When reporting a vulnerability, include enough information to reproduce and assess the issue safely:
+A useful report should include:
 
-- A clear description of the security impact.
-- The affected component, file, workflow, or release.
-- Reproduction steps or a minimal proof of concept when appropriate.
-- The affected version or commit.
-- Any relevant logs, error messages, or screenshots that do not contain secrets.
+- **Impact:** what an attacker could cause or access.
+- **Location:** affected component, file, workflow, release, or boundary.
+- **Reproduction:** clear steps or a minimal proof of concept, when safe to provide.
+- **Affected version:** release, commit, or build identifier.
+- **Evidence:** relevant logs, traces, or screenshots with sensitive information removed.
+- **Conditions:** any permissions, platform, configuration, or input required to reproduce the issue.
 
-Please **never include passwords, API keys, tokens, private keys, personal access information, or other secrets** in a report.
+### Never include secrets
 
-## What to Expect
+Do not place passwords, API keys, access tokens, private keys, signing credentials, recovery codes, cookies, or other authentication material in a vulnerability report.
 
-Reports will be reviewed as soon as practical. A valid report may result in a fix, mitigation, documentation update, or release containing the correction.
+If sensitive credentials were accidentally exposed, revoke or rotate them immediately and then report the security issue without reproducing the secret in the report itself.
 
-Please avoid publicly disclosing the vulnerability until there has been reasonable time to investigate and address it. Coordinated disclosure helps protect users who may be running affected builds.
+## What Happens After a Report
+
+Reports are reviewed as soon as practical. Depending on severity and scope, a report may result in a code fix, mitigation, configuration change, dependency update, workflow correction, documentation change, or security release.
+
+Security issues should be kept private while they are being investigated and remediated. Coordinated disclosure reduces the chance that users remain exposed while a fix is being prepared.
+
+A public advisory or release note may be published after remediation when appropriate. With the reporter's permission, responsible researchers may be credited.
 
 ## Security-Sensitive Areas
 
-Akron includes several areas that deserve particular security attention:
+The following parts of Akron receive particular security attention:
 
-- **Game and executable analysis:** files should be treated as untrusted input and analyzed without modifying the source game data.
-- **Desktop application boundaries:** Electron renderer, preload, main-process, and native-process communication should remain explicitly separated and validated.
-- **Native execution:** Analyzer and Adapter processes should not execute untrusted code merely because it is present in a game directory.
-- **Packaging and releases:** release workflows should avoid exposing signing material, tokens, credentials, or other secrets.
-- **Dependency management:** Rust and Node dependencies should be kept current where practical and reviewed when security advisories affect them.
-- **Build automation:** GitHub Actions changes should be reviewed for permission scope, artifact integrity, command injection, and untrusted repository input.
+### Untrusted Game Files
 
-## Secure Development Practices
+Game directories, executables, libraries, archives, installers, configuration files, and other imported content must be treated as **untrusted input**.
 
-Akron follows a verification-first development process. Security-sensitive changes should be accompanied by appropriate tests, static analysis, build verification, and review of the affected trust boundaries.
+Analysis should avoid executing or modifying untrusted content merely because it exists in a selected game directory. Source-game data should remain intact unless a conversion step explicitly creates a separate target copy or artifact.
 
-Do not disable a security check simply to make CI pass. Prefer fixing the underlying problem or documenting a deliberate, reviewed exception.
+### Native Process Boundaries
+
+Akron's Rust Analyzer, Rust Adapter, desktop main process, preload bridge, and renderer operate across different trust boundaries.
+
+IPC and process-launch inputs should be validated, argument handling should avoid shell interpretation, and privileged behavior should remain narrowly scoped.
+
+### Executable and Binary Analysis
+
+PE parsing, import inspection, dependency discovery, protection-signal detection, and future binary transformation features must be resilient to malformed or adversarial input.
+
+Parser bugs, unsafe memory behavior, path traversal, resource exhaustion, unexpected process execution, and confused-deputy behavior are treated as security-relevant concerns.
+
+### Packaging and Release Automation
+
+GitHub Actions workflows can produce distributable application artifacts and therefore require careful handling of:
+
+- repository and workflow permissions;
+- untrusted pull-request input;
+- shell command construction;
+- artifact provenance and integrity;
+- signing material and credentials;
+- release tags and automated versioning.
+
+Secrets must never be written to logs or embedded in artifacts.
+
+### Dependencies
+
+Rust and Node.js dependencies are part of Akron's security boundary. Dependency updates should be evaluated when advisories affect code used by the Analyzer, Adapter, desktop application, packaging system, or release pipeline.
+
+## Secure Development Expectations
+
+Security-sensitive changes should be accompanied by the verification appropriate to the change, such as:
+
+- formatter, compiler, and linter checks;
+- unit and integration tests;
+- malformed-input and boundary-condition tests;
+- packaging and artifact verification;
+- review of permission scopes and process boundaries.
+
+A security check should not be disabled simply to make CI pass. The preferred response is to correct the underlying issue or document a deliberate, reviewed exception.
 
 ## Scope
 
-This policy covers the Akron source repository, its GitHub Actions workflows, published Akron application artifacts, and security issues introduced by Akron's own code or build configuration.
+This policy covers:
 
-Third-party products, games, operating systems, DRM systems, or dependencies may have their own security policies and reporting channels. Vulnerabilities that are entirely within a third-party component should normally be reported to that component's maintainer as well.
+- Akron's source code and configuration;
+- GitHub Actions workflows and release automation;
+- published Akron application artifacts;
+- vulnerabilities introduced by Akron's own code or build configuration.
 
-## Credits
+Issues that exist entirely within a third-party game, operating system, DRM system, library, service, or other dependency should normally also be reported to the appropriate upstream maintainer.
 
-Akron appreciates responsible security research and coordinated disclosure. With the reporter's permission, security fixes may acknowledge contributors in release notes or project documentation.
+## Safe Research
+
+Security research against Akron should be performed in a controlled environment and should avoid unnecessary access to data belonging to other users.
+
+Please do not intentionally disrupt shared services, expose private information, publish working exploit details before coordinated remediation, or access systems that are outside the scope of Akron without authorization.
+
+## Recognition
+
+Akron values responsible security research. With the reporter's permission, confirmed security fixes may acknowledge the researcher in project documentation or release notes.
+
+---
+
+*Last reviewed: September 2026*
