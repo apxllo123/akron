@@ -218,20 +218,26 @@ fn detect_runtimes(
 }
 
 fn contains_any(data: &[u8], needles: &[&[u8]]) -> bool {
-    needles.iter().any(|needle| contains_case_insensitive(data, needle))
+    needles
+        .iter()
+        .any(|needle| contains_case_insensitive(data, needle))
 }
 
 fn contains_case_insensitive(data: &[u8], needle: &[u8]) -> bool {
     if needle.is_empty() {
         return true;
     }
-    data.windows(needle.len())
-        .any(|window| window.iter().zip(needle).all(|(&a, &b)| a.eq_ignore_ascii_case(&b)))
+    data.windows(needle.len()).any(|window| {
+        window
+            .iter()
+            .zip(needle)
+            .all(|(&a, &b)| a.eq_ignore_ascii_case(&b))
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{profile_game, GameProfile, GraphicsRequirements};
+    use super::{GameProfile, GraphicsRequirements, profile_game};
     use crate::manifest::{ExecutableRecord, GameManifest, ProtectionSignals};
     use std::path::PathBuf;
 
