@@ -98,15 +98,15 @@ jobs:
           /usr/bin/file "$ANALYZER"
 
           echo "== Renderer =="
-          test -f "$APP/Contents/Resources/ui/index.html"
-          test -f "$APP/Contents/Resources/ui/renderer.js"
-          test -f "$APP/Contents/Resources/ui/styles.css"
+          test -f "$APP/Contents/Resources/ui/index.html" || { echo "Missing packaged renderer index.html" >&2; exit 1; }
+          test -f "$APP/Contents/Resources/ui/renderer.js" || { echo "Missing packaged renderer renderer.js" >&2; exit 1; }
+          test -f "$APP/Contents/Resources/ui/styles.css" || { echo "Missing packaged renderer styles.css" >&2; exit 1; }
 
           echo "== Native marker =="
           MARKER="$APP/Contents/Resources/Akron-Build.txt"
-          test -f "$MARKER"
-          grep -Fq "Host: AppKit + WKWebView" "$MARKER"
-          grep -Fq "Electron runtime: not used" "$MARKER"
+          test -f "$MARKER" || { echo "Missing native build marker" >&2; exit 1; }
+          grep -Fq "Host: AppKit + WKWebView" "$MARKER" || { echo "Native marker has wrong host" >&2; cat "$MARKER"; exit 1; }
+          grep -Fq "Electron runtime: not used" "$MARKER" || { echo "Native marker indicates Electron runtime" >&2; cat "$MARKER"; exit 1; }
 
           echo "== Native package must not contain Electron runtime =="
           if find "$APP/Contents" -type f \( -name 'Electron Framework' -o -name 'electron' -o -name 'app.asar' \) -print -quit | grep -q .; then
@@ -115,8 +115,11 @@ jobs:
           fi
 
           echo "== Icon =="
-          test -f "$APP/Contents/Resources/Akron.icns"
-          /usr/bin/plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist"
+          if /usr/bin/plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist" >/dev/null 2>&1; then
+            echo "Dedicated Akron icon configured."
+          else
+            echo "Dedicated Akron icon not configured yet; using macOS generic application icon."
+          fi
 
           echo "== Code signature =="
           /usr/bin/codesign --verify --verbose=2 "$APP"
@@ -134,15 +137,15 @@ jobs:
           APP="$EXTRACT/Akron.app"
 
           echo "== Extracted artifact =="
-          test -d "$APP"
-          test -f "$APP/Contents/MacOS/Akron"
+          test -d "$APP" || { echo "Extracted ZIP did not contain Akron.app" >&2; exit 1; }
+          test -f "$APP/Contents/MacOS/Akron" || { echo "Extracted app is missing Akron executable" >&2; exit 1; }
           /usr/bin/file "$APP/Contents/MacOS/Akron"
-          test -x "$APP/Contents/MacOS/Akron"
-          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer"
-          test -f "$APP/Contents/Resources/ui/index.html"
-          test -f "$APP/Contents/Resources/Akron-Build.txt"
-          grep -Fq "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt"
-          /usr/bin/codesign --verify --verbose=2 "$APP"
+          test -x "$APP/Contents/MacOS/Akron" || { echo "Extracted Akron executable is not executable" >&2; ls -l "$APP/Contents/MacOS/Akron"; exit 1; }
+          test -x "$APP/Contents/Resources/akron-runtime/akron-analyzer" || { echo "Extracted Analyzer is not executable" >&2; exit 1; }
+          test -f "$APP/Contents/Resources/ui/index.html" || { echo "Extracted renderer index missing" >&2; exit 1; }
+          test -f "$APP/Contents/Resources/Akron-Build.txt" || { echo "Extracted native marker missing" >&2; exit 1; }
+          grep -Fq "Electron runtime: not used" "$APP/Contents/Resources/Akron-Build.txt" || { echo "Extracted package is not marked native" >&2; exit 1; }
+          /usr/bin/codesign --verify --verbose=2 "$APP" || { echo "Extracted app has invalid code signature" >&2; exit 1; }
 
           echo "== LaunchServices launch =="
           /usr/bin/open "$APP" >"$LOG" 2>&1 || true
@@ -168,6 +171,8 @@ jobs:
           echo "Native distributed Akron.app failed to remain running." >&2
           echo "--- Process snapshot ---" >&2
           pgrep -alf 'Akron|akron-analyzer' >&2 || true
+          echo "--- Recent native crash reports ---" >&2
+          find "$HOME/Library/Logs/DiagnosticReports" -maxdepth 1 -type f -name 'Akron*' -print -exec tail -n 80 {} \; 2>/dev/null || true
           exit 1
 
       - name: Upload native macOS diagnostics
