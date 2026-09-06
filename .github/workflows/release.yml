@@ -1,0 +1,138 @@
+name: Release Akron
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-akron
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Bump and tag Akron release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Calculate next release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_tag="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)"
+          current="$(node -p "require('./desktop/package.json').version")"
+
+          if [[ -z "$latest_tag" ]]; then
+            release_version="$current"
+          else
+            base="${latest_tag#v}"
+            IFS='.' read -r major minor _patch <<< "$base"
+            if [[ -z "${major:-}" || -z "${minor:-}" ]]; then
+              echo "Latest tag '$latest_tag' is not a supported Akron release version." >&2
+              exit 1
+            fi
+            release_version="${major}.$((minor + 1)).0"
+          fi
+
+          release_tag="v${release_version%.*}"
+          echo "version=$release_version" >> "$GITHUB_OUTPUT"
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "Current package version: $current"
+          echo "Latest release tag: ${latest_tag:-<none>}"
+          echo "Next release: $release_tag ($release_version)"
+
+          if git rev-parse "$release_tag" >/dev/null 2>&1; then
+            echo "Release tag already exists: $release_tag" >&2
+            exit 1
+          fi
+
+      - name: Update application versions
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const version = process.env.RELEASE_VERSION;
+          const buildNumber = process.env.BUILD_NUMBER;
+
+          const packagePath = 'desktop/package.json';
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          packageJson.version = version;
+          fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+
+          const plistPath = 'desktop/macos/Info.plist';
+          let plist = fs.readFileSync(plistPath, 'utf8');
+          plist = plist.replace(
+            /(<key>CFBundleShortVersionString<\/key>\s*<string>)[^<]+(<\/string>)/,
+            `$1${version}$2`,
+          );
+          plist = plist.replace(
+            /(<key>CFBundleVersion<\/key>\s*<string>)[^<]+(<\/string>)/,
+            `$1${buildNumber}$2`,
+          );
+          fs.writeFileSync(plistPath, plist);
+          NODE
+
+      - name: Verify version files
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_version="$(node -p "require('./desktop/package.json').version")"
+          plist_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' desktop/macos/Info.plist)"
+          test "$package_version" = "$RELEASE_VERSION"
+          test "$plist_version" = "$RELEASE_VERSION"
+          echo "Verified application version: $RELEASE_VERSION"
+
+      - name: Commit version bump
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- desktop/package.json desktop/macos/Info.plist; then
+            echo "No version-file changes required for the initial release."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add desktop/package.json desktop/macos/Info.plist
+          git commit -m "chore: bump release version to ${{ steps.version.outputs.tag }} [skip ci]"
+          git push origin main
+
+      - name: Create release tag
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          git tag -a "$RELEASE_TAG" -m "Akron $RELEASE_TAG" origin/main
+          git push origin "$RELEASE_TAG"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Akron $RELEASE_TAG" \
+            --generate-notes
