@@ -21,4 +21,13 @@ pub struct ExecutableRecord {
     pub path: PathBuf,
     pub format: String,
     pub architecture: Option<String>,
+    pub protection: ProtectionSignals,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct ProtectionSignals {
+    /// Heuristic packer/protector matches found in the executable's sections or bytes.
+    pub packers_or_protectors: Vec<String>,
+    /// Heuristic anti-cheat matches found in the executable or nearby file name.
+    pub anti_cheats: Vec<String>,
 }
