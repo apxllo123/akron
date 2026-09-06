@@ -6,11 +6,12 @@
   "author": "apxllo",
   "main": "dist-electron/main.js",
   "scripts": {
-    "build": "npm run typecheck && npm run compile && npm run compile:renderer && node scripts/build.mjs && electron-builder",
+    "build": "npm run typecheck && npm run compile && npm run compile:renderer && npm run stage-runtime && node scripts/build.mjs && electron-builder",
     "typecheck": "tsc --noEmit",
     "compile": "tsc",
     "compile:renderer": "tsc -p renderer/tsconfig.json",
-    "start": "npm run compile && npm run compile:renderer && node scripts/build.mjs && electron ."
+    "stage-runtime": "node scripts/stage-runtime.mjs",
+    "start": "npm run compile && npm run compile:renderer && npm run stage-runtime && node scripts/build.mjs && electron ."
   },
   "devDependencies": {
     "@types/node": "26.4.1",
