@@ -163,7 +163,7 @@ jobs:
           for attempt in $(seq 1 60); do
             run_id="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
-              --workflow 'build.yml' \
+              --workflow '.yml' \
               --event push \
               --limit 50 \
               --json databaseId,status,conclusion,headBranch,event \
